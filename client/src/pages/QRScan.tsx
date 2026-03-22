@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { QrCode, ArrowLeft, LogIn, KeyRound, Clock3 } from 'lucide-react';
+import { ArrowLeft, LogIn, KeyRound, Clock3 } from 'lucide-react';
 import { useMemberAuth } from '@/contexts/MemberAuthContext';
 import { trpc } from '@/lib/trpc';
 
@@ -34,13 +34,11 @@ export default function QRScan() {
 
         <Card className="elegant-card border-2 border-primary/20">
           <CardHeader className="text-center pb-6">
-            <div className="flex justify-center mb-4">
-              <div className="p-4 rounded-full bg-primary/10">
-                <QrCode className="w-8 h-8 text-primary" />
-              </div>
-            </div>
             <CardTitle className="text-2xl">QR 출석 안내</CardTitle>
-            <CardDescription className="mt-2">고정 QR이 확인되었습니다. 현재 시간대 4자리 인증 코드를 확인하세요. 코드는 각 시간대 시작 10분 전에 미리 바뀝니다.</CardDescription>
+            <div className="mt-3 space-y-1">
+              <CardDescription className="text-sm">QR이 확인되었습니다.</CardDescription>
+              <p className="text-base font-medium text-foreground">현재 시간대 4자리 인증 코드를 확인하세요.</p>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {isLoading ? (

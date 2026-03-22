@@ -128,6 +128,21 @@ function getKSTDayOfYear(date: Date = getEffectiveNow()): number {
   return Math.floor((current - start) / 86400000) + 1;
 }
 
+function getKSTDateForWeekday(now: Date, targetDayOfWeek: number): string {
+  const currentDay = getKSTDayOfWeek(now);
+  const diff = targetDayOfWeek - currentDay;
+  const target = new Date(now.getTime() + diff * 86400000);
+  return getKSTDateString(target);
+}
+
+function getWeekDates(now: Date = getEffectiveNow()) {
+  return [1, 2, 3, 4, 5].map((dayOfWeek) => ({
+    dayOfWeek,
+    dayName: DAY_NAMES[dayOfWeek],
+    date: getKSTDateForWeekday(now, dayOfWeek),
+  }));
+}
+
 function parseSlotMinutes(time: string): number {
   const [hour, minute] = time.split(":").map(Number);
   return hour * 60 + minute;
@@ -136,16 +151,15 @@ function parseSlotMinutes(time: string): number {
 function getCurrentTimeSlot(now: Date = getEffectiveNow()): number | null {
   const currentTime = getKSTMinutes(now);
 
-  for (const slot of TIME_SLOTS) {
+  const matchingSlots = TIME_SLOTS.filter((slot) => {
     const startTime = parseSlotMinutes(slot.start);
     const endTime = parseSlotMinutes(slot.end);
     const earlyCheckInTime = startTime - 10;
+    return currentTime >= earlyCheckInTime && currentTime < endTime;
+  });
 
-    if (currentTime >= earlyCheckInTime && currentTime < endTime) {
-      return slot.slot;
-    }
-  }
-  return null;
+  if (matchingSlots.length === 0) return null;
+  return matchingSlots[matchingSlots.length - 1]!.slot;
 }
 
 function getCurrentTimeSlotInfo(now: Date = getEffectiveNow()) {
@@ -197,16 +211,15 @@ function getActiveCodeTimeSlot(now: Date = getEffectiveNow()): number | null {
   if (!isWeekdayForAttendanceCodes(now)) return null;
 
   const currentMinutes = getKSTMinutes(now);
-  for (const slot of TIME_SLOTS) {
+  const matchingSlots = TIME_SLOTS.filter((slot) => {
     const startTime = parseSlotMinutes(slot.start);
     const endTime = parseSlotMinutes(slot.end);
     const earlyCheckInTime = startTime - 10;
+    return currentMinutes >= earlyCheckInTime && currentMinutes < endTime;
+  });
 
-    if (currentMinutes >= earlyCheckInTime && currentMinutes < endTime) {
-      return slot.slot;
-    }
-  }
-  return null;
+  if (matchingSlots.length === 0) return null;
+  return matchingSlots[matchingSlots.length - 1]!.slot;
 }
 
 function getNextCodeChangeTime(now: Date = getEffectiveNow()): Date | null {
@@ -216,16 +229,9 @@ function getNextCodeChangeTime(now: Date = getEffectiveNow()): Date | null {
   const { year, month, day } = getKSTParts(now);
 
   for (const slot of TIME_SLOTS) {
-    const startTime = parseSlotMinutes(slot.start);
-    const endTime = parseSlotMinutes(slot.end);
-    const earlyCheckInTime = startTime - 10;
-
+    const earlyCheckInTime = parseSlotMinutes(slot.start) - 10;
     if (currentMinutes < earlyCheckInTime) {
       return new Date(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(Math.floor(earlyCheckInTime / 60)).padStart(2, '0')}:${String(earlyCheckInTime % 60).padStart(2, '0')}:00+09:00`);
-    }
-
-    if (currentMinutes >= earlyCheckInTime && currentMinutes < endTime) {
-      return new Date(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${slot.end}:00+09:00`);
     }
   }
 
@@ -622,6 +628,40 @@ export const appRouter = router({
         dayName: DAY_NAMES[s.dayOfWeek],
         timeSlotLabel: TIME_SLOTS.find(t => t.slot === s.timeSlot)?.label,
       }));
+    }),
+
+    getCurrentWeek: publicProcedure.query(async () => {
+      const now = getEffectiveNow();
+      const members = await db.getAllMembers();
+      const weekDates = getWeekDates(now);
+
+      const days = await Promise.all(
+        weekDates.map(async ({ dayOfWeek, dayName, date }) => {
+          const schedules = await getEffectiveSchedulesForDate(date);
+          const slots = TIME_SLOTS.map((slot) => {
+            const schedule = schedules.find((s) => s.timeSlot === slot.slot) ?? null;
+            const member = schedule ? members.find((m) => m.id === schedule.memberId) ?? null : null;
+            return {
+              slot: slot.slot,
+              label: slot.label,
+              memberId: schedule?.memberId ?? null,
+              member,
+            };
+          });
+
+          return {
+            dayOfWeek,
+            dayName,
+            date,
+            slots,
+          };
+        })
+      );
+
+      return {
+        currentTimeLabel: getKSTDateTimeLabel(now),
+        days,
+      };
     }),
 
     getByDay: publicProcedure

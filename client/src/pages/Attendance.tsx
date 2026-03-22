@@ -11,7 +11,6 @@ import {
   Clock, 
   XCircle,
   Shield,
-  QrCode,
   KeyRound
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
@@ -134,7 +133,7 @@ export default function Attendance() {
                           <div className="text-xs text-muted-foreground mb-1">현재 기준 시간</div>
                           <div className="text-sm font-medium mb-2">{todayStatus?.currentTimeLabel || formatKSTDateTime(todayStatus?.currentTime)}</div>
                           <div className="text-xs text-muted-foreground mb-1">담당자</div>
-                          <div className="text-sm font-semibold text-foreground">{currentSlotInfo.assigneeName || '미배정'}</div>
+                          <div className="text-sm font-semibold text-foreground">{currentSlotInfo.assigneeName || '담당자 없음'}</div>
                         </div>
                         <div className="space-y-2 mt-3">
                           <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
@@ -148,14 +147,10 @@ export default function Attendance() {
                             inputMode="numeric"
                             maxLength={4}
                           />
-                          <p className="text-xs text-muted-foreground flex items-center gap-1">
-                            <QrCode className="w-3.5 h-3.5" />
-                            고정 QR은 이미 인식되었습니다.
-                          </p>
                         </div>
                         {isAlreadyCheckedIn ? (
-                          <div className="flex items-center gap-2 text-emerald-600">
-                            <CheckCircle2 className="w-5 h-5" />
+                          <div className={`flex items-center gap-2 ${todayStatus?.myAttendances?.find((a) => a.timeSlot === todayStatus.currentSlot)?.status === 'late' ? 'text-amber-600' : todayStatus?.myAttendances?.find((a) => a.timeSlot === todayStatus.currentSlot)?.status === 'absent' ? 'text-red-500' : 'text-emerald-600'}`} >
+                            {getStatusIcon(todayStatus?.myAttendances?.find((a) => a.timeSlot === todayStatus.currentSlot)?.status || 'present')}
                             <span className="font-medium">{getStatusText(todayStatus?.myAttendances?.find((a) => a.timeSlot === todayStatus.currentSlot)?.status || 'present', todayStatus?.myAttendances?.find((a) => a.timeSlot === todayStatus.currentSlot)?.lateMinutes)}</span>
                           </div>
                         ) : currentSlotInfo.assigneeId === member?.id ? (
