@@ -20,7 +20,12 @@ export default function QRManagement() {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
 
   // 현재 코드 조회
-  const { data: codeData, refetch: refetchCode, isLoading } = trpc.qr.getCurrentCode.useQuery();
+  const { data: codeData, refetch: refetchCode, isLoading } = trpc.qr.getCurrentCode.useQuery(undefined, {
+    refetchInterval: 5000,
+    refetchOnMount: true,
+    refetchOnWindowFocus: true,
+    staleTime: 0,
+  });
 
   // 코드 강제 생성
   const forceGenerateMutation = trpc.qr.forceGenerateCode.useMutation({
@@ -33,11 +38,11 @@ export default function QRManagement() {
     },
   });
 
-  // 자동 새로고침 - 1분마다
+  // 자동 새로고침 - 30초마다
   useEffect(() => {
     const interval = setInterval(() => {
       refetchCode();
-    }, 60000);
+    }, 30000);
     return () => clearInterval(interval);
   }, [refetchCode]);
 
@@ -49,7 +54,7 @@ export default function QRManagement() {
   };
 
   const handleForceGenerate = () => {
-    if (confirm('새로운 코드를 강제 생성하시겠습니까?')) {
+    if (confirm('현재 시간대 인증 코드를 다시 확인하시겠습니까?')) {
       forceGenerateMutation.mutate();
     }
   };
@@ -93,10 +98,10 @@ export default function QRManagement() {
           <CardHeader className="pb-4">
             <CardTitle className="flex items-center gap-2">
               <QrCode className="w-5 h-5 text-primary" />
-              현재 인증 코드
+              현재 시간대 인증 코드
             </CardTitle>
             <CardDescription>
-              사용자가 QR 스캔 시 확인하는 코드입니다
+              고정 QR을 스캔한 뒤 사용하는 4자리 인증 코드입니다
             </CardDescription>
           </CardHeader>
 
@@ -140,17 +145,17 @@ export default function QRManagement() {
                 <div className="space-y-3 pt-4 border-t">
                   <div className="text-sm text-muted-foreground flex items-center gap-2">
                     <Clock className="w-4 h-4" />
-                    다음 시간대 코드
+                    다음 전환 코드
                   </div>
                   <div className="p-4 rounded-xl bg-secondary/50 border border-border">
                     <div className="text-4xl font-bold tracking-widest text-foreground font-mono text-center mb-2">
                       {codeData?.nextCode || '----'}
                     </div>
                     <p className="text-xs text-muted-foreground text-center">
-                      {codeData?.nextChangeTime && (
-                        <>
-                          변경 예정: {new Date(codeData.nextChangeTime).toLocaleTimeString('ko-KR')}
-                        </>
+                      {codeData?.nextChangeTimeLabel ? (
+                        <>변경 예정: {codeData.nextChangeTimeLabel}</>
+                      ) : (
+                        <>현재 변경 예정 시간이 없습니다.</>
                       )}
                     </p>
                   </div>
@@ -177,14 +182,14 @@ export default function QRManagement() {
               코드 강제 생성
             </CardTitle>
             <CardDescription>
-              필요시 새로운 코드를 수동으로 생성할 수 있습니다
+              필요시 현재 시간대 기준 코드를 다시 확인합니다
             </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-4">
             <div className="p-4 rounded-lg bg-amber-50 border border-amber-200">
               <p className="text-sm text-amber-900">
-                <span className="font-semibold">⚠️ 주의:</span> 코드를 강제 생성하면 현재 시간대의 코드가 변경됩니다. 이미 입력한 코드는 유효하지 않게 됩니다.
+                <span className="font-semibold">⚠️ 주의:</span> 고정 QR에서는 시간대별 4자리 인증 코드가 자동 계산됩니다. 이 버튼은 현재 값을 다시 불러오는 용도입니다.
               </p>
             </div>
 
@@ -202,7 +207,7 @@ export default function QRManagement() {
               ) : (
                 <>
                   <RefreshCw className="w-5 h-5" />
-                  새 코드 생성
+                  현재 코드 다시 확인
                 </>
               )}
             </Button>
@@ -214,13 +219,13 @@ export default function QRManagement() {
           <CardContent className="pt-6">
             <div className="space-y-2 text-sm text-blue-900">
               <p>
-                <span className="font-semibold">ℹ️ 정보:</span> 코드는 매 시간마다 자동으로 변경됩니다.
+                <span className="font-semibold">ℹ️ 정보:</span> 코드는 각 1시간 30분 타임 기준으로 자동 변경됩니다.
               </p>
               <p>
-                현재 코드는 QR 스캔 페이지에서 사용자에게 표시됩니다.
+                고정 QR은 그대로 유지되고, 현재 시간대의 4자리 인증 코드만 바뀝니다.
               </p>
               <p>
-                사용자는 표시된 코드를 출석체크 페이지에 입력하여 출석을 처리합니다.
+                사용자는 QR 스캔 후 현재 시간대 인증 코드를 가지고 출석을 진행합니다.
               </p>
             </div>
           </CardContent>

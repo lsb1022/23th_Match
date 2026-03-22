@@ -37,12 +37,12 @@ export default function MyAttendance() {
     }
   };
 
-  const getStatusText = (status: string) => {
+  const getStatusText = (status: string, lateMinutes?: number | null) => {
     switch (status) {
       case 'present':
         return '정시';
       case 'late':
-        return '지각';
+        return typeof lateMinutes === 'number' ? `${lateMinutes}분 지각` : '지각';
       case 'absent':
         return '결석';
       default:
@@ -191,7 +191,7 @@ export default function MyAttendance() {
                       </div>
                     </div>
                     <span className={`px-2.5 py-1 rounded-full text-xs font-medium ${getStatusClass(attendance.status)}`}>
-                      {getStatusText(attendance.status)}
+                      {getStatusText(attendance.status, attendance.lateMinutes)}
                     </span>
                   </div>
                 ))}

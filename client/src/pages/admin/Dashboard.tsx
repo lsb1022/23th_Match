@@ -30,6 +30,7 @@ export default function AdminDashboard() {
   const [isTimeDialogOpen, setIsTimeDialogOpen] = useState(false);
   const [testDate, setTestDate] = useState('');
   const [testTime, setTestTime] = useState('');
+  const utils = trpc.useUtils();
 
   const { data: stats, error: statsError, isLoading: statsLoading, refetch: refetchStats } = trpc.dashboard.stats.useQuery(undefined, {
     enabled: isAuthenticated && user?.role === 'admin',
@@ -44,7 +45,17 @@ export default function AdminDashboard() {
       setTestDate('');
       setTestTime('');
       setIsTimeDialogOpen(false);
-      await Promise.all([refetchStats(), refetchTestTime()]);
+      await Promise.all([
+        refetchStats(),
+        refetchTestTime(),
+        utils.qr.getCurrentCode.invalidate(),
+        utils.qr.getScanInfo.invalidate(),
+        utils.qr.verifyTimeBasedCode.invalidate(),
+        utils.attendance.getTodayStatus.invalidate(),
+        utils.attendance.getMyAttendances.invalidate(),
+        utils.schedule.getMySchedule.invalidate(),
+        utils.dashboard.stats.invalidate(),
+      ]);
     },
   });
 

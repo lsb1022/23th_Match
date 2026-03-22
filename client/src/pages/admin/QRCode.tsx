@@ -78,7 +78,7 @@ export default function AdminQRCode() {
   const handleCopyCode = () => {
     if (qrSetting?.secretKey) {
       navigator.clipboard.writeText(qrSetting.secretKey);
-      toast.success('코드가 복사되었습니다.');
+      toast.success('QR 식별값이 복사되었습니다.');
     }
   };
 
@@ -162,7 +162,7 @@ export default function AdminQRCode() {
 
                 {/* Secret Key */}
                 <div className="space-y-2">
-                  <label className="text-sm font-medium">시크릿 코드</label>
+                  <label className="text-sm font-medium">고정 QR 식별값</label>
                   <div className="flex gap-2">
                     <div className="flex-1 p-3 rounded-lg bg-muted font-mono text-sm break-all">
                       {qrSetting.secretKey}
@@ -214,7 +214,7 @@ export default function AdminQRCode() {
           <CardHeader className="pb-3">
             <CardTitle className="text-lg">QR 코드 갱신</CardTitle>
             <CardDescription>
-              보안을 위해 주기적으로 QR 코드를 갱신하세요
+              학생회실에 붙일 고정 QR을 관리합니다. 자주 바꾸지 않는 것을 권장합니다
             </CardDescription>
           </CardHeader>
           <CardContent>

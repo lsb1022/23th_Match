@@ -128,59 +128,129 @@ function getKSTDayOfYear(date: Date = getEffectiveNow()): number {
   return Math.floor((current - start) / 86400000) + 1;
 }
 
-
-
-function getKSTWeekStart(date: Date = getEffectiveNow()): Date {
-  const { year, month, day, weekdayIndex } = getKSTParts(date);
-  const diffToMonday = weekdayIndex === 0 ? -6 : 1 - weekdayIndex;
-  return new Date(Date.UTC(year, month - 1, day + diffToMonday, 0, 0, 0));
+function parseSlotMinutes(time: string): number {
+  const [hour, minute] = time.split(":").map(Number);
+  return hour * 60 + minute;
 }
 
-function addKSTDays(date: Date, days: number): Date {
-  const { year, month, day } = getKSTParts(date);
-  return new Date(Date.UTC(year, month - 1, day + days, 0, 0, 0));
-}
-
-function formatYmdFromUtcDate(date: Date): string {
-  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, '0')}-${String(date.getUTCDate()).padStart(2, '0')}`;
-}
-
-function parseDateStringToUtc(date: string): Date {
-  const [year, month, day] = date.split('-').map(Number);
-  return new Date(Date.UTC(year, month - 1, day, 0, 0, 0));
-}
 function getCurrentTimeSlot(now: Date = getEffectiveNow()): number | null {
   const currentTime = getKSTMinutes(now);
-  let matchedSlot: number | null = null;
-  let matchedPriority = -Infinity;
 
   for (const slot of TIME_SLOTS) {
-    const [startH, startM] = slot.start.split(":").map(Number);
-    const [endH, endM] = slot.end.split(":").map(Number);
-    const startTime = startH * 60 + startM;
-    const endTime = endH * 60 + endM;
+    const startTime = parseSlotMinutes(slot.start);
+    const endTime = parseSlotMinutes(slot.end);
     const earlyCheckInTime = startTime - 10;
 
-    if (currentTime >= earlyCheckInTime && currentTime < endTime && earlyCheckInTime > matchedPriority) {
-      matchedSlot = slot.slot;
-      matchedPriority = earlyCheckInTime;
+    if (currentTime >= earlyCheckInTime && currentTime < endTime) {
+      return slot.slot;
     }
   }
-  return matchedSlot;
+  return null;
+}
+
+function getCurrentTimeSlotInfo(now: Date = getEffectiveNow()) {
+  const currentSlot = getActiveCodeTimeSlot(now);
+  const slotInfo = TIME_SLOTS.find((slot) => slot.slot === currentSlot) ?? null;
+  return { currentSlot, slotInfo };
+}
+
+function getNextChangeTime(now: Date = getEffectiveNow()): Date | null {
+  const currentMinutes = getKSTMinutes(now);
+
+  for (const slot of TIME_SLOTS) {
+    const startTime = parseSlotMinutes(slot.start);
+    const endTime = parseSlotMinutes(slot.end);
+    const earlyCheckInTime = startTime - 10;
+
+    if (currentMinutes < earlyCheckInTime) {
+      const { year, month, day } = getKSTParts(now);
+      return new Date(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(Math.floor(earlyCheckInTime / 60)).padStart(2, '0')}:${String(earlyCheckInTime % 60).padStart(2, '0')}:00+09:00`);
+    }
+
+    if (currentMinutes >= earlyCheckInTime && currentMinutes < endTime) {
+      const { year, month, day } = getKSTParts(now);
+      return new Date(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${slot.end}:00+09:00`);
+    }
+  }
+
+  return null;
+}
+
+function getLateMinutes(checkInTime: Date | string | null | undefined, timeSlot: number): number | null {
+  if (!checkInTime) return null;
+  const slot = TIME_SLOTS.find((s) => s.slot === timeSlot);
+  if (!slot) return null;
+
+  const checkInDate = checkInTime instanceof Date ? checkInTime : new Date(checkInTime);
+  if (Number.isNaN(checkInDate.getTime())) return null;
+
+  const lateMinutes = getKSTMinutes(checkInDate) - parseSlotMinutes(slot.start);
+  return lateMinutes > 0 ? lateMinutes : 0;
+}
+
+function isWeekdayForAttendanceCodes(now: Date = getEffectiveNow()): boolean {
+  const dayOfWeek = getKSTDayOfWeek(now);
+  return dayOfWeek >= 1 && dayOfWeek <= 5;
+}
+
+function getActiveCodeTimeSlot(now: Date = getEffectiveNow()): number | null {
+  if (!isWeekdayForAttendanceCodes(now)) return null;
+
+  const currentMinutes = getKSTMinutes(now);
+  for (const slot of TIME_SLOTS) {
+    const startTime = parseSlotMinutes(slot.start);
+    const endTime = parseSlotMinutes(slot.end);
+    const earlyCheckInTime = startTime - 10;
+
+    if (currentMinutes >= earlyCheckInTime && currentMinutes < endTime) {
+      return slot.slot;
+    }
+  }
+  return null;
+}
+
+function getNextCodeChangeTime(now: Date = getEffectiveNow()): Date | null {
+  if (!isWeekdayForAttendanceCodes(now)) return null;
+
+  const currentMinutes = getKSTMinutes(now);
+  const { year, month, day } = getKSTParts(now);
+
+  for (const slot of TIME_SLOTS) {
+    const startTime = parseSlotMinutes(slot.start);
+    const endTime = parseSlotMinutes(slot.end);
+    const earlyCheckInTime = startTime - 10;
+
+    if (currentMinutes < earlyCheckInTime) {
+      return new Date(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${String(Math.floor(earlyCheckInTime / 60)).padStart(2, '0')}:${String(earlyCheckInTime % 60).padStart(2, '0')}:00+09:00`);
+    }
+
+    if (currentMinutes >= earlyCheckInTime && currentMinutes < endTime) {
+      return new Date(`${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}T${slot.end}:00+09:00`);
+    }
+  }
+
+  return null;
+}
+
+function generateTimeSlotPin(secretKey: string, date: string, timeSlot: number): string {
+  const digest = crypto
+    .createHash('sha256')
+    .update(`${secretKey}:${date}:${timeSlot}`)
+    .digest('hex');
+  const numeric = parseInt(digest.slice(0, 8), 16) % 10000;
+  return String(numeric).padStart(4, '0');
 }
 
 function getAttendanceStatus(checkInTime: Date, timeSlot: number): "present" | "late" | "absent" {
   const slot = TIME_SLOTS.find(s => s.slot === timeSlot);
   if (!slot) return "absent";
 
-  const [startH, startM] = slot.start.split(":").map(Number);
-  const [endH, endM] = slot.end.split(":").map(Number);
   const checkInMinutes = getKSTMinutes(checkInTime);
-  const startMinutes = startH * 60 + startM;
-  const endMinutes = endH * 60 + endM;
+  const startMinutes = parseSlotMinutes(slot.start);
+  const absentThresholdMinutes = startMinutes + 80;
 
   if (checkInMinutes <= startMinutes) return "present";
-  if (checkInMinutes < endMinutes) return "late";
+  if (checkInMinutes < absentThresholdMinutes) return "late";
   return "absent";
 }
 
@@ -188,12 +258,6 @@ async function getEffectiveSchedulesForDate(date: string) {
   const baseSchedules = await db.getSchedulesByDate(date);
   const approvedRequests = (await db.getAllSwapRequests(500))
     .filter(request => request.status === 'approved');
-
-  const dateUtc = parseDateStringToUtc(date);
-  const weekdayIndex = (() => {
-    const utcDay = dateUtc.getUTCDay();
-    return utcDay === 0 ? 7 : utcDay;
-  })();
 
   const effectiveSchedules = [...baseSchedules];
   const upsertSlot = (timeSlot: number, memberId: number) => {
@@ -205,7 +269,7 @@ async function getEffectiveSchedulesForDate(date: string) {
     effectiveSchedules.push({
       id: -1 * (effectiveSchedules.length + 1),
       memberId,
-      dayOfWeek: weekdayIndex,
+      dayOfWeek: new Date(`${date}T00:00:00Z`).getUTCDay(),
       timeSlot,
       isActive: true,
       createdAt: new Date(),
@@ -214,8 +278,8 @@ async function getEffectiveSchedulesForDate(date: string) {
   };
 
   for (const request of approvedRequests) {
-    const originalDate = normalizeDateString(request.originalDate);
-    const swapDate = normalizeDateString(request.swapDate);
+    const originalDate = request.originalDate instanceof Date ? request.originalDate.toISOString().split('T')[0] : String(request.originalDate);
+    const swapDate = request.swapDate instanceof Date ? request.swapDate.toISOString().split('T')[0] : request.swapDate ? String(request.swapDate) : null;
 
     if (request.requestType === 'substitute') {
       if (request.targetId && originalDate === date) {
@@ -399,7 +463,7 @@ export const appRouter = router({
   // ==================== Attendance ====================
   attendance: router({
     checkIn: memberProtectedProcedure
-      .input(z.object({ code: z.string().min(1, 'QR 코드가 필요합니다.') }))
+      .input(z.object({ qrCode: z.string().min(1, 'QR 코드가 필요합니다.'), pinCode: z.string().length(4, '인증 코드는 4자리여야 합니다.') }))
       .mutation(async ({ input, ctx }) => {
         const memberId = ctx.member.memberId;
 
@@ -412,9 +476,9 @@ export const appRouter = router({
           throw new TRPCError({ code: 'BAD_REQUEST', message: '주말에는 출석체크가 불가능합니다.' });
         }
 
-        const currentSlot = getCurrentTimeSlot(now);
+        const currentSlot = getActiveCodeTimeSlot(now);
         if (!currentSlot) {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: '현재 출석체크 가능한 시간이 아닙니다. (12:00 - 18:00)' });
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '현재 출석체크 가능한 시간이 아닙니다. (평일 11:50 - 18:00)' });
         }
         
         // 담당자 검증 - 오늘의 스케줄에서 현재 시간대 담당자 확인
@@ -422,8 +486,13 @@ export const appRouter = router({
         if (!activeQr) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: '활성화된 QR 코드가 없습니다. 관리자에게 문의하세요.' });
         }
-        if (input.code !== activeQr.secretKey) {
+        if (input.qrCode !== activeQr.secretKey) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: '유효하지 않은 QR 코드입니다.' });
+        }
+
+        const expectedPinCode = generateTimeSlotPin(activeQr.secretKey, today, currentSlot);
+        if (input.pinCode !== expectedPinCode) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '현재 시간대 인증 코드가 올바르지 않습니다.' });
         }
 
         const todaySchedules = await getEffectiveSchedulesForDate(today);
@@ -435,38 +504,48 @@ export const appRouter = router({
         
         // 이미 출석했는지 확인
         const existing = await db.getAttendanceByMemberAndDate(memberId, today, currentSlot);
-        if (existing) {
+        if (existing && existing.status !== 'absent') {
           throw new TRPCError({ code: 'CONFLICT', message: '이미 출석체크를 완료했습니다.' });
         }
 
         const status = getAttendanceStatus(now, currentSlot);
-        if (status === 'absent') {
-          throw new TRPCError({ code: 'BAD_REQUEST', message: '해당 시간대는 이미 결석 처리 시점입니다.' });
-        }
 
-        await db.createAttendance({
-          memberId,
-          date: new Date(today),
-          timeSlot: currentSlot,
-          checkInTime: now,
-          status,
-          qrVerified: true,
-        });
+        if (existing) {
+          await db.updateAttendance(existing.id, {
+            checkInTime: now,
+            status,
+            qrVerified: true,
+          });
+        } else {
+          await db.createAttendance({
+            memberId,
+            date: new Date(today),
+            timeSlot: currentSlot,
+            checkInTime: now,
+            status,
+            qrVerified: true,
+          });
+        }
 
         const slotInfo = TIME_SLOTS.find(s => s.slot === currentSlot);
         return {
           success: true,
           status,
+          lateMinutes: status === 'late' ? getLateMinutes(now, currentSlot) : null,
           timeSlot: slotInfo?.label,
           checkInTime: now.toISOString(),
           checkInTimeLabel: getKSTDateTimeLabel(now),
+          pinCode: expectedPinCode,
         };
       }),
 
     getMyAttendance: memberProtectedProcedure
       .query(async ({ ctx }) => {
         const memberId = ctx.member.memberId;
-        const attendances = await db.getAttendancesByMember(memberId);
+        const attendances = (await db.getAttendancesByMember(memberId)).map(attendance => ({
+          ...attendance,
+          lateMinutes: attendance.status === 'late' ? getLateMinutes(attendance.checkInTime, attendance.timeSlot) : null,
+        }));
         const stats = await db.getAttendanceStats(memberId);
         return { attendances, stats };
       }),
@@ -481,7 +560,12 @@ export const appRouter = router({
 
         // 오늘의 모든 출석 기록 가져오기
         const todayAttendances = await db.getAttendancesByDate(today);
-        const myAttendances = todayAttendances.filter(a => a.memberId === memberId);
+        const myAttendances = todayAttendances
+          .filter(a => a.memberId === memberId)
+          .map(attendance => ({
+            ...attendance,
+            lateMinutes: attendance.status === 'late' ? getLateMinutes(attendance.checkInTime, attendance.timeSlot) : null,
+          }));
 
         // 오늘의 스케줄 가져오기 (각 시간대별 담당자)
         const todaySchedules = await getEffectiveSchedulesForDate(today);
@@ -491,22 +575,12 @@ export const appRouter = router({
         const timeSlotsWithAssignee = TIME_SLOTS.map(slot => {
           const schedule = todaySchedules.find(s => s.timeSlot === slot.slot);
           const assignee = schedule ? members.find(m => m.id === schedule.memberId) : null;
-          const [startH, startM] = slot.start.split(":").map(Number);
-          const [endH, endM] = slot.end.split(":").map(Number);
-          const startMinutes = startH * 60 + startM;
-          const endMinutes = endH * 60 + endM;
-          const currentMinutes = getKSTMinutes(now);
-          const checkInEnabled = currentMinutes >= startMinutes - 10 && currentMinutes < endMinutes;
-
           return {
             ...slot,
             assigneeId: schedule?.memberId || null,
             assigneeName: assignee?.name || null,
-            checkInEnabled,
           };
         });
-
-        const activeSlot = timeSlotsWithAssignee.find(s => s.slot === currentSlot) ?? null;
 
         return {
           date: today,
@@ -516,8 +590,7 @@ export const appRouter = router({
           timeSlots: timeSlotsWithAssignee,
           myAttendances,
           isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
-          currentAssigneeId: activeSlot?.assigneeId || null,
-          currentAssigneeName: activeSlot?.assigneeName || null,
+          currentAssigneeId: timeSlotsWithAssignee.find(s => s.slot === currentSlot)?.assigneeId || null,
           currentTime: now.toISOString(),
           currentTimeLabel: getKSTDateTimeLabel(now),
         };
@@ -563,118 +636,6 @@ export const appRouter = router({
           timeSlotLabel: TIME_SLOTS.find(t => t.slot === s.timeSlot)?.label,
         }));
       }),
-
-
-    weeklyView: memberProtectedProcedure.query(async () => {
-      const members = await db.getAllMembers();
-      const weekStart = getKSTWeekStart();
-      const days = Array.from({ length: 5 }, (_, index) => {
-        const date = addKSTDays(weekStart, index);
-        const dateString = formatYmdFromUtcDate(date);
-        return {
-          date: dateString,
-          dayOfWeek: index + 1,
-          dayName: DAY_NAMES[index + 1],
-        };
-      });
-
-      const schedulesByDay = await Promise.all(
-        days.map(async (day) => {
-          const effectiveSchedules = await getEffectiveSchedulesForDate(day.date);
-          return {
-            ...day,
-            slots: TIME_SLOTS.map((slot) => {
-              const schedule = effectiveSchedules.find((item) => item.timeSlot === slot.slot);
-              const member = schedule ? members.find((item) => item.id === schedule.memberId) : null;
-              return {
-                slot: slot.slot,
-                label: slot.label,
-                memberId: schedule?.memberId ?? null,
-                memberName: member?.name ?? null,
-              };
-            }),
-          };
-        })
-      );
-
-      return { days: schedulesByDay };
-    }),
-
-    myUpcomingOptions: memberProtectedProcedure.query(async ({ ctx }) => {
-      const weekStart = getKSTWeekStart();
-      const dates = Array.from({ length: 12 }, (_, index) => addKSTDays(weekStart, index))
-        .filter((date) => {
-          const weekday = date.getUTCDay();
-          return weekday >= 1 && weekday <= 5;
-        });
-
-      const options: Array<{
-        date: string;
-        dayName: string;
-        timeSlot: number;
-        timeSlotLabel: string;
-        displayLabel: string;
-      }> = [];
-
-      for (const date of dates) {
-        const dateString = formatYmdFromUtcDate(date);
-        const effectiveSchedules = await getEffectiveSchedulesForDate(dateString);
-        for (const schedule of effectiveSchedules) {
-          if (schedule.memberId !== ctx.member.memberId) continue;
-          const slotInfo = TIME_SLOTS.find((slot) => slot.slot === schedule.timeSlot);
-          options.push({
-            date: dateString,
-            dayName: DAY_NAMES[schedule.dayOfWeek],
-            timeSlot: schedule.timeSlot,
-            timeSlotLabel: slotInfo?.label ?? '',
-            displayLabel: `${dateString} (${DAY_NAMES[schedule.dayOfWeek]}) ${slotInfo?.label ?? ''}`,
-          });
-        }
-      }
-
-      return options;
-    }),
-
-    upcomingAllOptions: memberProtectedProcedure.query(async ({ ctx }) => {
-      const members = await db.getAllMembers();
-      const weekStart = getKSTWeekStart();
-      const dates = Array.from({ length: 12 }, (_, index) => addKSTDays(weekStart, index))
-        .filter((date) => {
-          const weekday = date.getUTCDay();
-          return weekday >= 1 && weekday <= 5;
-        });
-
-      const options: Array<{
-        date: string;
-        dayName: string;
-        timeSlot: number;
-        timeSlotLabel: string;
-        memberId: number | null;
-        memberName: string | null;
-        displayLabel: string;
-      }> = [];
-
-      for (const date of dates) {
-        const dateString = formatYmdFromUtcDate(date);
-        const effectiveSchedules = await getEffectiveSchedulesForDate(dateString);
-        for (const slot of TIME_SLOTS) {
-          const schedule = effectiveSchedules.find((item) => item.timeSlot === slot.slot);
-          const member = schedule ? members.find((item) => item.id === schedule.memberId) : null;
-          if (!schedule || schedule.memberId === ctx.member.memberId) continue;
-          options.push({
-            date: dateString,
-            dayName: DAY_NAMES[schedule.dayOfWeek],
-            timeSlot: slot.slot,
-            timeSlotLabel: slot.label,
-            memberId: schedule.memberId,
-            memberName: member?.name ?? null,
-            displayLabel: `${dateString} (${DAY_NAMES[schedule.dayOfWeek]}) ${slot.label} · ${member?.name ?? '담당자 없음'}`,
-          });
-        }
-      }
-
-      return options;
-    }),
 
     create: adminProcedure
       .input(z.object({
@@ -1008,76 +969,103 @@ export const appRouter = router({
         return { valid: setting?.secretKey === input.code };
       }),
 
-    // 시간별 동적 4자리 코드 생성
-    generateTimeBasedCode: publicProcedure.query(() => {
-      const now = getEffectiveNow();
-      const hours = Math.floor(getKSTMinutes(now) / 60);
-      const dayOfYear = getKSTDayOfYear(now);
-      
-      // 시간 + 날짜 기반 seed로 4자리 코드 생성 (KST 기준)
-      const seed = (dayOfYear * 24 + hours) * 12345;
-      const code = Math.abs(seed % 10000).toString().padStart(4, '0');
-      
-      return { code };
-    }),
-
-    // 시간별 동적 코드 검증
-    verifyTimeBasedCode: publicProcedure
-      .input(z.object({ code: z.string() }))
+    getScanInfo: publicProcedure
+      .input(z.object({ qrCode: z.string().min(1, 'QR 코드가 필요합니다.') }))
       .query(async ({ input }) => {
+        const activeQr = await db.getActiveQrSetting();
+        if (!activeQr || activeQr.secretKey !== input.qrCode) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '유효하지 않은 QR 코드입니다.' });
+        }
+
         const now = getEffectiveNow();
-        const hours = Math.floor(getKSTMinutes(now) / 60);
-        const dayOfYear = getKSTDayOfYear(now);
-        const seed = (dayOfYear * 24 + hours) * 12345;
-        const expectedCode = Math.abs(seed % 10000).toString().padStart(4, '0');
-        
+        const today = getKSTDateString(now);
+        const currentSlot = getActiveCodeTimeSlot(now);
+        const slotInfo = TIME_SLOTS.find((slot) => slot.slot === currentSlot) ?? null;
+        const nextChangeTime = getNextCodeChangeTime(now);
+
+        return {
+          qrValid: true,
+          currentCode: currentSlot ? generateTimeSlotPin(activeQr.secretKey, today, currentSlot) : null,
+          currentTimeSlot: currentSlot,
+          currentTimeSlotLabel: slotInfo?.label ?? null,
+          currentDate: today,
+          currentTimeLabel: getKSTDateTimeLabel(now),
+          nextChangeTime: nextChangeTime?.toISOString() ?? null,
+          nextChangeTimeLabel: nextChangeTime ? getKSTDateTimeLabel(nextChangeTime) : null,
+        };
+      }),
+
+    verifyTimeBasedCode: publicProcedure
+      .input(z.object({ qrCode: z.string().min(1), code: z.string().length(4) }))
+      .query(async ({ input }) => {
+        const activeQr = await db.getActiveQrSetting();
+        if (!activeQr || activeQr.secretKey !== input.qrCode) {
+          return { valid: false };
+        }
+        const now = getEffectiveNow();
+        const today = getKSTDateString(now);
+        const currentSlot = getActiveCodeTimeSlot(now);
+        if (!currentSlot) {
+          return { valid: false };
+        }
+        const expectedCode = generateTimeSlotPin(activeQr.secretKey, today, currentSlot);
         return { valid: input.code === expectedCode };
       }),
 
-    getCurrentCode: adminProcedure.query(() => {
+    getCurrentCode: adminProcedure.query(async () => {
+      const activeQr = await db.getActiveQrSetting();
+      if (!activeQr) {
+        return {
+          currentCode: null,
+          nextCode: null,
+          currentTime: getEffectiveNow().toISOString(),
+          currentTimeLabel: getKSTDateTimeLabel(getEffectiveNow()),
+          nextChangeTime: null,
+          nextChangeTimeLabel: null,
+          currentTimeSlotLabel: null,
+        };
+      }
+
       const now = getEffectiveNow();
-      const hours = Math.floor(getKSTMinutes(now) / 60);
-      const dayOfYear = getKSTDayOfYear(now);
-      const seed = (dayOfYear * 24 + hours) * 12345;
-      const code = Math.abs(seed % 10000).toString().padStart(4, '0');
-      
-      const nextHourTime = new Date(now.getTime() + 3600000);
-      const nextHours = Math.floor(getKSTMinutes(nextHourTime) / 60);
-      const nextDayOfYear = getKSTDayOfYear(nextHourTime);
-      const nextSeed = (nextDayOfYear * 24 + nextHours) * 12345;
-      const nextCode = Math.abs(nextSeed % 10000).toString().padStart(4, '0');
-      
-      return { 
-        currentCode: code,
-        nextCode: nextCode,
+      const today = getKSTDateString(now);
+      const currentSlot = getActiveCodeTimeSlot(now);
+      const slotInfo = TIME_SLOTS.find((slot) => slot.slot === currentSlot) ?? null;
+      const nextChangeTime = getNextCodeChangeTime(now);
+      const nextSlot = nextChangeTime ? getActiveCodeTimeSlot(new Date(nextChangeTime.getTime() + 60000)) : null;
+
+      return {
+        currentCode: currentSlot ? generateTimeSlotPin(activeQr.secretKey, today, currentSlot) : null,
+        nextCode: nextSlot ? generateTimeSlotPin(activeQr.secretKey, today, nextSlot) : null,
         currentTime: now.toISOString(),
         currentTimeLabel: getKSTDateTimeLabel(now),
-        nextChangeTime: nextHourTime.toISOString(),
-        nextChangeTimeLabel: getKSTDateTimeLabel(nextHourTime)
+        nextChangeTime: nextChangeTime?.toISOString() ?? null,
+        nextChangeTimeLabel: nextChangeTime ? getKSTDateTimeLabel(nextChangeTime) : null,
+        currentTimeSlotLabel: slotInfo?.label ?? null,
       };
     }),
 
     forceGenerateCode: adminProcedure.mutation(async () => {
+      const activeQr = await db.getActiveQrSetting();
+      if (!activeQr) {
+        throw new TRPCError({ code: 'BAD_REQUEST', message: '먼저 고정 QR 코드를 생성해주세요.' });
+      }
+
       const now = getEffectiveNow();
-      const hours = Math.floor(getKSTMinutes(now) / 60);
-      const dayOfYear = getKSTDayOfYear(now);
-      const seed = (dayOfYear * 24 + hours) * 12345;
-      const code = Math.abs(seed % 10000).toString().padStart(4, '0');
-      
-      const nextHourTime = new Date(now.getTime() + 3600000);
-      const nextHours = Math.floor(getKSTMinutes(nextHourTime) / 60);
-      const nextDayOfYear = getKSTDayOfYear(nextHourTime);
-      const nextSeed = (nextDayOfYear * 24 + nextHours) * 12345;
-      const nextCode = Math.abs(nextSeed % 10000).toString().padStart(4, '0');
-      
+      const today = getKSTDateString(now);
+      const currentSlot = getActiveCodeTimeSlot(now);
+      const slotInfo = TIME_SLOTS.find((slot) => slot.slot === currentSlot) ?? null;
+      const nextChangeTime = getNextCodeChangeTime(now);
+      const nextSlot = nextChangeTime ? getActiveCodeTimeSlot(new Date(nextChangeTime.getTime() + 60000)) : null;
+
       return {
         success: true,
-        message: 'Code generated successfully',
-        currentCode: code,
-        nextCode: nextCode,
-        nextChangeTime: nextHourTime.toISOString(),
+        message: '고정 QR은 유지되고, 4자리 인증 코드는 평일 11:50부터 각 시간대 시작 10분 전에 미리 바뀝니다.',
+        currentCode: currentSlot ? generateTimeSlotPin(activeQr.secretKey, today, currentSlot) : null,
+        nextCode: nextSlot ? generateTimeSlotPin(activeQr.secretKey, today, nextSlot) : null,
+        nextChangeTime: nextChangeTime?.toISOString() ?? null,
         currentTimeLabel: getKSTDateTimeLabel(now),
-        nextChangeTimeLabel: getKSTDateTimeLabel(nextHourTime)
+        nextChangeTimeLabel: nextChangeTime ? getKSTDateTimeLabel(nextChangeTime) : null,
+        currentTimeSlotLabel: slotInfo?.label ?? null,
       };
     }),
 
@@ -1160,5 +1148,3 @@ export const appRouter = router({
 });
 
 export type AppRouter = typeof appRouter;
-
-

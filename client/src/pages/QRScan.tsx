@@ -2,13 +2,25 @@ import { useMemo } from 'react';
 import { useLocation } from 'wouter';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { QrCode, ArrowLeft, LogIn } from 'lucide-react';
+import { QrCode, ArrowLeft, LogIn, KeyRound, Clock3 } from 'lucide-react';
 import { useMemberAuth } from '@/contexts/MemberAuthContext';
+import { trpc } from '@/lib/trpc';
 
 export default function QRScan() {
   const [, navigate] = useLocation();
   const { isAuthenticated } = useMemberAuth();
-  const code = useMemo(() => new URLSearchParams(window.location.search).get('code') || '', []);
+  const qrCode = useMemo(() => new URLSearchParams(window.location.search).get('code') || '', []);
+
+  const { data: scanInfo, isLoading, error } = trpc.qr.getScanInfo.useQuery(
+    { qrCode },
+    {
+      enabled: !!qrCode,
+      refetchInterval: 5000,
+      refetchOnMount: true,
+      refetchOnWindowFocus: true,
+      staleTime: 0,
+    },
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-primary/10 via-background to-primary/5 flex items-center justify-center p-4">
@@ -28,19 +40,54 @@ export default function QRScan() {
               </div>
             </div>
             <CardTitle className="text-2xl">QR 출석 안내</CardTitle>
-            <CardDescription className="mt-2">학생회실 출석용 QR이 확인되었습니다.</CardDescription>
+            <CardDescription className="mt-2">고정 QR이 확인되었습니다. 현재 시간대 4자리 인증 코드를 확인하세요. 코드는 각 시간대 시작 10분 전에 미리 바뀝니다.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="p-4 rounded-xl bg-muted/50 border">
-              <div className="text-xs text-muted-foreground mb-1">인식된 QR 코드</div>
-              <div className="font-mono break-all text-sm">{code || '코드가 없습니다.'}</div>
-            </div>
-            <p className="text-sm text-muted-foreground text-center">
-              {isAuthenticated ? '아래 버튼을 누르면 QR 코드가 자동으로 입력된 출석 페이지로 이동합니다.' : '로그인 후 QR 코드가 자동 입력된 출석 페이지에서 출석을 진행하세요.'}
-            </p>
-            <Button className="w-full" onClick={() => navigate(`/attendance?code=${encodeURIComponent(code)}`)} disabled={!code}>
-              {isAuthenticated ? '출석 페이지로 이동' : <><LogIn className="w-4 h-4 mr-2" />로그인 후 출석 페이지로 이동</>}
-            </Button>
+            {isLoading ? (
+              <div className="text-center py-10 text-muted-foreground">인증 코드를 불러오는 중...</div>
+            ) : error ? (
+              <div className="text-center py-10 text-red-500">{error.message}</div>
+            ) : (
+              <>
+                <div className="p-5 rounded-xl bg-primary/5 border border-primary/10 text-center">
+                  <div className="text-xs text-muted-foreground mb-2 flex items-center justify-center gap-1">
+                    <KeyRound className="w-3.5 h-3.5" />
+                    현재 시간대 4자리 인증 코드
+                  </div>
+                  <div className="font-mono text-5xl tracking-[0.3em] text-primary font-bold pl-[0.3em]">
+                    {scanInfo?.currentCode ?? '----'}
+                  </div>
+                  <div className="mt-3 text-xs text-muted-foreground">
+                    {scanInfo?.currentTimeSlotLabel ? `${scanInfo.currentTimeSlotLabel} 시간대 코드` : '현재 출석 가능한 시간대가 아닙니다.'}
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-muted/50 border space-y-1 text-sm">
+                  <div className="flex items-center gap-2 text-muted-foreground">
+                    <Clock3 className="w-4 h-4" />
+                    현재 기준 시각
+                  </div>
+                  <div className="font-medium">{scanInfo?.currentTimeLabel ?? '-'}</div>
+                  {scanInfo?.nextChangeTimeLabel && (
+                    <div className="text-xs text-muted-foreground">다음 코드 변경: {scanInfo.nextChangeTimeLabel}</div>
+                  )}
+                </div>
+
+                <p className="text-sm text-muted-foreground text-center">
+                  {isAuthenticated
+                    ? '아래 버튼을 누르면 고정 QR과 현재 시간대 인증 코드가 적용된 출석 페이지로 이동합니다.'
+                    : '로그인 후 출석 페이지에서 현재 시간대 인증 코드가 적용된 상태로 출석을 진행하세요.'}
+                </p>
+
+                <Button
+                  className="w-full"
+                  onClick={() => navigate(`/attendance?code=${encodeURIComponent(qrCode)}&pin=${encodeURIComponent(scanInfo?.currentCode ?? '')}`)}
+                  disabled={!qrCode || !scanInfo?.currentCode}
+                >
+                  {isAuthenticated ? '출석 페이지로 이동' : <><LogIn className="w-4 h-4 mr-2" />로그인 후 출석 페이지로 이동</>}
+                </Button>
+              </>
+            )}
           </CardContent>
         </Card>
       </div>
