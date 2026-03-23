@@ -37,8 +37,8 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-background to-secondary/30 px-4 py-6 sm:py-10">
-      <div className="mx-auto flex w-full max-w-md flex-col gap-5">
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-background to-secondary/30 px-4 py-6">
+      <div className="mx-auto flex w-full max-w-md flex-col gap-4">
         <div className="text-center">
           <div className="mx-auto mb-4 flex h-14 w-14 items-center justify-center rounded-2xl bg-primary/10 sm:h-16 sm:w-16">
             <Shield className="h-7 w-7 text-primary sm:h-8 sm:w-8" />
@@ -48,11 +48,11 @@ export default function Login() {
         </div>
 
         <Card className="elegant-card border-0 shadow-lg">
-          <CardHeader className="pb-3 pt-5 sm:pb-4">
+          <CardHeader className="pb-0 pt-2 sm:pb-0">
             <CardTitle className="text-center text-xl">로그인</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">
-            <form onSubmit={handleSubmit} className="space-y-3.5">
+            <form onSubmit={handleSubmit} className="space-y-3">
               <div className="space-y-1.5">
                 <Label htmlFor="username" className="text-sm font-medium">아이디</Label>
                 <div className="relative">

@@ -135,12 +135,18 @@ function getKSTDateForWeekday(now: Date, targetDayOfWeek: number): string {
   return getKSTDateString(target);
 }
 
-function getWeekDates(now: Date = getEffectiveNow()) {
+function getWeekDates(now: Date = getEffectiveNow(), weekOffset = 0) {
+  const base = new Date(now.getTime() + weekOffset * 7 * 86400000);
   return [1, 2, 3, 4, 5].map((dayOfWeek) => ({
     dayOfWeek,
     dayName: DAY_NAMES[dayOfWeek],
-    date: getKSTDateForWeekday(now, dayOfWeek),
+    date: getKSTDateForWeekday(base, dayOfWeek),
   }));
+}
+
+function formatScheduleOptionLabel(date: string, dayName: string, slotLabel: string, memberName?: string | null) {
+  const suffix = memberName ? ` · ${memberName}` : '';
+  return `${date} (${dayName}) · ${slotLabel}${suffix}`;
 }
 
 function parseSlotMinutes(time: string): number {
@@ -780,6 +786,46 @@ export const appRouter = router({
 
   // ==================== Swap Requests ====================
   swap: router({
+    getRequestOptions: memberProtectedProcedure
+      .query(async ({ ctx }) => {
+        const members = await db.getAllMembers();
+        const weeks = [0, 1];
+        const entries: Array<{
+          date: string;
+          dayOfWeek: number;
+          dayName: string;
+          timeSlot: number;
+          label: string;
+          memberId: number | null;
+          memberName: string | null;
+        }> = [];
+
+        for (const weekOffset of weeks) {
+          const weekDates = getWeekDates(getEffectiveNow(), weekOffset);
+          for (const { date, dayOfWeek, dayName } of weekDates) {
+            const schedules = await getEffectiveSchedulesForDate(date);
+            for (const slot of TIME_SLOTS) {
+              const schedule = schedules.find((item) => item.timeSlot === slot.slot) ?? null;
+              const assignedMember = schedule ? members.find((member) => member.id === schedule.memberId) ?? null : null;
+              entries.push({
+                date,
+                dayOfWeek,
+                dayName,
+                timeSlot: slot.slot,
+                label: formatScheduleOptionLabel(date, dayName, slot.label, assignedMember?.name ?? null),
+                memberId: assignedMember?.id ?? null,
+                memberName: assignedMember?.name ?? null,
+              });
+            }
+          }
+        }
+
+        return {
+          mySchedules: entries.filter((entry) => entry.memberId === ctx.member.memberId),
+          availableSwapSchedules: entries.filter((entry) => entry.memberId !== null),
+        };
+      }),
+
     create: memberProtectedProcedure
       .input(z.object({
         targetId: z.number().optional(),

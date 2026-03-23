@@ -4,7 +4,6 @@ import { trpc } from '@/lib/trpc';
 import { useMemberAuth } from '@/contexts/MemberAuthContext';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -25,25 +24,22 @@ export default function Swap() {
   const { member, isAuthenticated } = useMemberAuth();
   
   const [requestType, setRequestType] = useState<'swap' | 'substitute'>('swap');
-  const [originalDate, setOriginalDate] = useState('');
-  const [originalTimeSlot, setOriginalTimeSlot] = useState('');
-  const [swapDate, setSwapDate] = useState('');
-  const [swapTimeSlot, setSwapTimeSlot] = useState('');
+  const [originalScheduleKey, setOriginalScheduleKey] = useState('');
+  const [swapScheduleKey, setSwapScheduleKey] = useState('');
   const [targetId, setTargetId] = useState('');
   const [reason, setReason] = useState('');
 
   const { data: myRequests, isLoading, refetch } = trpc.swap.getMyRequests.useQuery(undefined, { enabled: !!member?.id });
   const { data: activeMembers } = trpc.members.activeOptions.useQuery(undefined, { enabled: !!member?.id });
+  const { data: requestOptions } = trpc.swap.getRequestOptions.useQuery(undefined, { enabled: !!member?.id });
 
   const createMutation = trpc.swap.create.useMutation({
     onSuccess: () => {
       toast.success('신청이 완료되었습니다.');
       refetch();
       // Reset form
-      setOriginalDate('');
-      setOriginalTimeSlot('');
-      setSwapDate('');
-      setSwapTimeSlot('');
+      setOriginalScheduleKey('');
+      setSwapScheduleKey('');
       setReason('');
       setTargetId('');
     },
@@ -69,18 +65,21 @@ export default function Swap() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!originalDate || !originalTimeSlot) {
-      toast.error('날짜와 시간대를 선택해주세요.');
+    if (!originalScheduleKey) {
+      toast.error('내 일정에서 변경할 시간대를 선택해주세요.');
       return;
     }
-    if (requestType === 'swap' && (!swapDate || !swapTimeSlot)) {
-      toast.error('교대할 날짜와 시간대를 선택해주세요.');
+    if (requestType === 'swap' && !swapScheduleKey) {
+      toast.error('교대할 일정을 선택해주세요.');
       return;
     }
     if (requestType === 'substitute' && !targetId) {
       toast.error('대타를 해줄 사람을 선택해주세요.');
       return;
     }
+
+    const [originalDate, originalTimeSlot] = originalScheduleKey.split('|');
+    const [swapDate, swapTimeSlot] = swapScheduleKey ? swapScheduleKey.split('|') : ['', ''];
 
     createMutation.mutate({
       originalDate,
@@ -144,6 +143,12 @@ export default function Swap() {
     3: '15:00-16:30',
     4: '16:30-18:00',
   };
+
+  const myScheduleOptions = requestOptions?.mySchedules ?? [];
+  const availableSwapSchedules = (requestOptions?.availableSwapSchedules ?? []).filter((option) => {
+    if (!originalScheduleKey) return option.memberId !== member?.id;
+    return `${option.date}|${option.timeSlot}` !== originalScheduleKey && option.memberId !== member?.id;
+  });
 
   return (
     <div className="min-h-screen bg-background">
@@ -218,33 +223,25 @@ export default function Swap() {
                   </div>
 
                   {/* Original Schedule */}
-                  <div className="space-y-3 p-4 rounded-lg bg-muted/50">
-                    <Label className="text-sm font-medium">내 원래 일정</Label>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">날짜</Label>
-                        <Input
-                          type="date"
-                          value={originalDate}
-                          onChange={(e) => setOriginalDate(e.target.value)}
-                          className="h-10"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">시간대</Label>
-                        <Select value={originalTimeSlot} onValueChange={setOriginalTimeSlot}>
-                          <SelectTrigger className="h-10">
-                            <SelectValue placeholder="선택" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="1">12:00-13:30</SelectItem>
-                            <SelectItem value="2">13:30-15:00</SelectItem>
-                            <SelectItem value="3">15:00-16:30</SelectItem>
-                            <SelectItem value="4">16:30-18:00</SelectItem>
-                          </SelectContent>
-                        </Select>
-                      </div>
+                  <div className="space-y-3 rounded-lg bg-muted/50 p-4">
+                    <div className="space-y-1">
+                      <Label className="text-sm font-medium">내 원래 일정</Label>
+                      <p className="text-xs text-muted-foreground">이번주와 다음주에 배정된 내 일정만 선택할 수 있어요.</p>
                     </div>
+                    <Select value={originalScheduleKey} onValueChange={setOriginalScheduleKey}>
+                      <SelectTrigger className="h-10">
+                        <SelectValue placeholder="이번주/다음주 일정에서 선택" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {myScheduleOptions.length > 0 ? myScheduleOptions.map((option) => (
+                          <SelectItem key={`${option.date}-${option.timeSlot}`} value={`${option.date}|${option.timeSlot}`}>
+                            {option.label}
+                          </SelectItem>
+                        )) : (
+                          <SelectItem value="no-schedule" disabled>선택 가능한 일정이 없습니다</SelectItem>
+                        )}
+                      </SelectContent>
+                    </Select>
                   </div>
 
                   {requestType === 'substitute' && (
@@ -267,33 +264,25 @@ export default function Swap() {
 
                   {/* Swap Schedule (only for swap type) */}
                   {requestType === 'swap' && (
-                    <div className="space-y-3 p-4 rounded-lg bg-primary/5 border border-primary/10">
-                      <Label className="text-sm font-medium">교대할 일정</Label>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">날짜</Label>
-                          <Input
-                            type="date"
-                            value={swapDate}
-                            onChange={(e) => setSwapDate(e.target.value)}
-                            className="h-10"
-                          />
-                        </div>
-                        <div className="space-y-1.5">
-                          <Label className="text-xs text-muted-foreground">시간대</Label>
-                          <Select value={swapTimeSlot} onValueChange={setSwapTimeSlot}>
-                            <SelectTrigger className="h-10">
-                              <SelectValue placeholder="선택" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="1">12:00-13:30</SelectItem>
-                              <SelectItem value="2">13:30-15:00</SelectItem>
-                              <SelectItem value="3">15:00-16:30</SelectItem>
-                              <SelectItem value="4">16:30-18:00</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
+                    <div className="space-y-3 rounded-lg border border-primary/10 bg-primary/5 p-4">
+                      <div className="space-y-1">
+                        <Label className="text-sm font-medium">교대할 일정</Label>
+                        <p className="text-xs text-muted-foreground">이번주와 다음주 실제 배정표 안에서만 선택할 수 있어요.</p>
                       </div>
+                      <Select value={swapScheduleKey} onValueChange={setSwapScheduleKey}>
+                        <SelectTrigger className="h-10">
+                          <SelectValue placeholder="교대할 일정 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableSwapSchedules.length > 0 ? availableSwapSchedules.map((option) => (
+                            <SelectItem key={`${option.date}-${option.timeSlot}-${option.memberId}`} value={`${option.date}|${option.timeSlot}`}>
+                              {option.label}
+                            </SelectItem>
+                          )) : (
+                            <SelectItem value="no-swap" disabled>선택 가능한 교대 일정이 없습니다</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
                     </div>
                   )}
 

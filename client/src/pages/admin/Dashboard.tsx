@@ -147,19 +147,19 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 glass border-b border-border/50">
-        <div className="container flex items-center justify-between h-16">
-          <div className="flex items-center gap-3">
+        <div className="container flex min-h-16 flex-col items-start justify-center gap-3 py-3 sm:h-16 sm:min-h-0 sm:flex-row sm:items-center sm:justify-between sm:py-0">
+          <div className="flex min-w-0 items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
               <Shield className="w-5 h-5 text-primary" />
             </div>
-            <div>
-              <span className="font-semibold text-foreground">관리자 대시보드</span>
-              <span className="text-xs text-muted-foreground ml-2">
-                {user?.name}
-              </span>
+            <div className="min-w-0">
+              <div className="flex min-w-0 flex-col gap-0.5 sm:flex-row sm:items-center sm:gap-2">
+                <span className="truncate font-semibold text-foreground">관리자 대시보드</span>
+                <span className="truncate text-xs text-muted-foreground">{user?.name}</span>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex w-full flex-wrap items-center justify-end gap-2 sm:w-auto">
             {testTimeData?.isTestMode && (
               <div className="text-xs bg-amber-500/10 text-amber-600 px-2 py-1 rounded">
                 테스트 모드: {testTimeData.currentTimeLabel}
@@ -167,7 +167,7 @@ export default function AdminDashboard() {
             )}
             <Dialog open={isTimeDialogOpen} onOpenChange={setIsTimeDialogOpen}>
               <DialogTrigger asChild>
-                <Button variant="ghost" size="sm" className="text-muted-foreground hover:text-foreground">
+                <Button variant="ghost" size="sm" className="h-9 px-2 text-muted-foreground hover:text-foreground sm:px-3">
                   <Clock className="w-4 h-4 mr-2" />
                   시간 설정
                 </Button>
@@ -252,7 +252,7 @@ export default function AdminDashboard() {
         {stats && (
           <>
         {/* Stats Overview */}
-        <div className="grid grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4 min-[460px]:grid-cols-2">
           <Card className="elegant-card">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
@@ -289,7 +289,7 @@ export default function AdminDashboard() {
               <div>
                 <h2 className="text-lg font-semibold text-foreground">오늘의 출석</h2>
                 <p className="text-sm text-muted-foreground">
-                  {new Date().toLocaleDateString('ko-KR', { 
+                  {stats?.currentDateLabel ?? new Date().toLocaleDateString('ko-KR', { 
                     year: 'numeric', 
                     month: 'long', 
                     day: 'numeric',
@@ -299,7 +299,7 @@ export default function AdminDashboard() {
               </div>
               <TrendingUp className="w-8 h-8 text-primary/50" />
             </div>
-            <div className="grid grid-cols-4 gap-3">
+            <div className="grid grid-cols-2 gap-3 min-[460px]:grid-cols-4">
               <div className="text-center p-3 rounded-lg bg-white/50">
                 <div className="text-xl font-bold text-emerald-600">
                   {stats?.todayStats?.present ?? 0}
