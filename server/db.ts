@@ -123,6 +123,16 @@ export async function getMemberById(id: number) {
   return result.length > 0 ? result[0] : undefined;
 }
 
+
+
+export async function getMembersByApprovalStatus(status: "pending" | "approved" | "rejected") {
+  const db = await getDb();
+  if (!db) return [];
+
+  return await db.select().from(members)
+    .where(eq(members.approvalStatus, status))
+    .orderBy(desc(members.createdAt));
+}
 export async function getAllMembers() {
   const db = await getDb();
   if (!db) return [];

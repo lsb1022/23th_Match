@@ -32,6 +32,7 @@ export const members = mysqlTable("members", {
   phone: varchar("phone", { length: 20 }),
   department: varchar("department", { length: 100 }),
   studentId: varchar("studentId", { length: 20 }),
+  approvalStatus: mysqlEnum("approvalStatus", ["pending", "approved", "rejected"]).default("approved").notNull(),
   isActive: boolean("isActive").default(true).notNull(),
   createdAt: timestamp("createdAt").defaultNow().notNull(),
   updatedAt: timestamp("updatedAt").defaultNow().onUpdateNow().notNull(),

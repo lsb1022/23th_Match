@@ -80,7 +80,7 @@ export default function Schedule() {
                         return (
                           <div
                             key={slot.slot}
-                            className={`flex items-center justify-between p-3 rounded-lg border ${
+                            className={`flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between p-3 rounded-lg border ${
                               isMySchedule ? 'border-primary/30 bg-primary/5' : 'border-border'
                             }`}
                           >

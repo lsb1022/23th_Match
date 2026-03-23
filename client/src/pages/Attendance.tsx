@@ -149,7 +149,7 @@ export default function Attendance() {
                           />
                         </div>
                         {isAlreadyCheckedIn ? (
-                          <div className={`flex items-center gap-2 ${todayStatus?.myAttendances?.find((a) => a.timeSlot === todayStatus.currentSlot)?.status === 'late' ? 'text-amber-600' : todayStatus?.myAttendances?.find((a) => a.timeSlot === todayStatus.currentSlot)?.status === 'absent' ? 'text-red-500' : 'text-emerald-600'}`} >
+                          <div className={`flex items-center gap-2 rounded-lg px-3 py-2 ${todayStatus?.myAttendances?.find((a) => a.timeSlot === todayStatus.currentSlot)?.status === 'late' ? 'bg-amber-500/10 text-amber-600' : todayStatus?.myAttendances?.find((a) => a.timeSlot === todayStatus.currentSlot)?.status === 'absent' ? 'bg-red-500/10 text-red-500' : 'bg-emerald-500/10 text-emerald-600'}`} >
                             {getStatusIcon(todayStatus?.myAttendances?.find((a) => a.timeSlot === todayStatus.currentSlot)?.status || 'present')}
                             <span className="font-medium">{getStatusText(todayStatus?.myAttendances?.find((a) => a.timeSlot === todayStatus.currentSlot)?.status || 'present', todayStatus?.myAttendances?.find((a) => a.timeSlot === todayStatus.currentSlot)?.lateMinutes)}</span>
                           </div>
@@ -172,7 +172,7 @@ export default function Attendance() {
                       </div>
                     )}
 
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                       {todayStatus?.timeSlots?.map((slot) => {
                         const attendance = todayStatus.myAttendances?.find((a) => a.timeSlot === slot.slot);
                         const status = attendance?.status || 'pending';

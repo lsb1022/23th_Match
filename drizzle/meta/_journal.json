@@ -15,6 +15,13 @@
       "when": 1765826283691,
       "tag": "0001_careless_bulldozer",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "5",
+      "when": 1765827000000,
+      "tag": "0002_member_approval_status",
+      "breakpoints": true
     }
   ]
 }

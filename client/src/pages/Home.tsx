@@ -78,12 +78,12 @@ export default function Home() {
     <div className="min-h-screen bg-background">
       {/* Header */}
       <header className="sticky top-0 z-50 glass border-b border-border/50">
-        <div className="container flex items-center justify-between h-16">
+        <div className="container flex h-16 items-center justify-between gap-3">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center">
               <Shield className="w-5 h-5 text-primary" />
             </div>
-            <span className="font-semibold text-foreground">학생회실 지킴이</span>
+            <span className="truncate font-semibold text-foreground">학생회실 지킴이</span>
           </div>
           <Button
             variant="ghost"
@@ -92,7 +92,7 @@ export default function Home() {
               await logout();
               navigate('/login');
             }}
-            className="text-muted-foreground hover:text-foreground"
+            className="shrink-0 text-muted-foreground hover:text-foreground sm:px-3"
           >
             <LogOut className="w-4 h-4 mr-2" />
             로그아웃
@@ -125,7 +125,7 @@ export default function Home() {
                     <h3 className="font-semibold text-foreground group-hover:text-primary transition-colors">
                       {item.title}
                     </h3>
-                    <p className="text-sm text-muted-foreground truncate">
+                    <p className="text-sm text-muted-foreground line-clamp-2 sm:line-clamp-1">
                       {item.description}
                     </p>
                   </div>

@@ -382,6 +382,12 @@ export const appRouter = router({
         if (!member) {
           throw new TRPCError({ code: 'UNAUTHORIZED', message: '아이디 또는 비밀번호가 올바르지 않습니다.' });
         }
+        if (member.approvalStatus === 'pending') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '회원가입 신청이 승인 대기 중입니다.' });
+        }
+        if (member.approvalStatus === 'rejected') {
+          throw new TRPCError({ code: 'FORBIDDEN', message: '회원가입 신청이 반려되었습니다. 학생회에 문의해주세요.' });
+        }
         if (!member.isActive) {
           throw new TRPCError({ code: 'FORBIDDEN', message: '비활성화된 계정입니다.' });
         }
@@ -406,12 +412,34 @@ export const appRouter = router({
           }
         };
       }),
+
+    signup: publicProcedure
+      .input(memberCreateSchema)
+      .mutation(async ({ input }) => {
+        const existing = await db.getMemberByUsername(input.username);
+        if (existing) {
+          throw new TRPCError({ code: 'CONFLICT', message: '이미 사용 중인 아이디입니다.' });
+        }
+
+        await db.createMember({
+          ...input,
+          password: hashPassword(input.password),
+          approvalStatus: 'pending',
+          isActive: false,
+        });
+
+        return { success: true } as const;
+      }),
   }),
 
   // ==================== Member Management (Admin) ====================
   members: router({
     list: adminProcedure.query(async () => {
-      return await db.getAllMembers();
+      return (await db.getAllMembers()).filter(member => member.approvalStatus !== 'pending');
+    }),
+
+    pending: adminProcedure.query(async () => {
+      return await db.getMembersByApprovalStatus('pending');
     }),
 
     activeOptions: memberProtectedProcedure.query(async ({ ctx }) => {
@@ -442,6 +470,8 @@ export const appRouter = router({
         await db.createMember({
           ...input,
           password: hashPassword(input.password),
+          approvalStatus: 'approved',
+          isActive: true,
         });
         return { success: true };
       }),
@@ -455,6 +485,20 @@ export const appRouter = router({
           updateData.password = hashPassword(password);
         }
         await db.updateMember(id, updateData as any);
+        return { success: true };
+      }),
+
+    approve: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.updateMember(input.id, { approvalStatus: 'approved', isActive: true } as any);
+        return { success: true };
+      }),
+
+    reject: adminProcedure
+      .input(z.object({ id: z.number() }))
+      .mutation(async ({ input }) => {
+        await db.updateMember(input.id, { approvalStatus: 'rejected', isActive: false } as any);
         return { success: true };
       }),
     

@@ -9,6 +9,7 @@ import { MemberAuthProvider } from "./contexts/MemberAuthContext";
 // User Pages
 import Home from "./pages/Home";
 import Login from "./pages/Login";
+import Signup from "./pages/Signup";
 import QRScan from "./pages/QRScan";
 import Attendance from "./pages/Attendance";
 import MyAttendance from "./pages/MyAttendance";
@@ -36,6 +37,7 @@ function Router() {
       {/* User Routes */}
       <Route path="/" component={Home} />
       <Route path="/login" component={Login} />
+      <Route path="/signup" component={Signup} />
       <Route path="/qr-scan" component={QRScan} />
       <Route path="/attendance" component={Attendance} />
       <Route path="/my-attendance" component={MyAttendance} />

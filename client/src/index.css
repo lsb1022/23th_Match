@@ -133,7 +133,7 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply bg-background text-foreground font-sans antialiased overflow-x-hidden;
   }
   h1, h2, h3, h4, h5, h6 {
     @apply font-semibold tracking-tight;
@@ -220,4 +220,8 @@
       max-width: 1280px; /* Standard content width */
     }
   }
+}
+@layer base {
+  img, svg, video, canvas { max-width: 100%; }
+  input, select, textarea { min-width: 0; }
 }
