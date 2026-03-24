@@ -328,6 +328,30 @@ export default function AdminDashboard() {
           </div>
         </Card>
 
+        <div className="grid grid-cols-1 gap-4 min-[460px]:grid-cols-3">
+          <Card className="elegant-card">
+            <CardContent className="p-4">
+              <div className="text-xs text-muted-foreground mb-2">누적 출석률</div>
+              <div className="text-2xl font-bold text-emerald-600">{stats?.attendanceStats?.presentRate ?? 0}%</div>
+              <div className="mt-1 text-xs text-muted-foreground">정시 {stats?.attendanceStats?.present ?? 0}건</div>
+            </CardContent>
+          </Card>
+          <Card className="elegant-card">
+            <CardContent className="p-4">
+              <div className="text-xs text-muted-foreground mb-2">누적 지각률</div>
+              <div className="text-2xl font-bold text-amber-600">{stats?.attendanceStats?.lateRate ?? 0}%</div>
+              <div className="mt-1 text-xs text-muted-foreground">지각 {stats?.attendanceStats?.late ?? 0}건</div>
+            </CardContent>
+          </Card>
+          <Card className="elegant-card">
+            <CardContent className="p-4">
+              <div className="text-xs text-muted-foreground mb-2">누적 결석률</div>
+              <div className="text-2xl font-bold text-red-600">{stats?.attendanceStats?.absentRate ?? 0}%</div>
+              <div className="mt-1 text-xs text-muted-foreground">결석 {stats?.attendanceStats?.absent ?? 0}건</div>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Menu Grid */}
         <div className="grid gap-3">
           {menuItems.map((item) => (

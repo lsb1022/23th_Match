@@ -48,7 +48,7 @@ export default function Login() {
         </div>
 
         <Card className="elegant-card border-0 shadow-lg">
-          <CardHeader className="pb-0 pt-2 sm:pb-0">
+          <CardHeader className="pb-1 pt-4 sm:pb-2">
             <CardTitle className="text-center text-xl">로그인</CardTitle>
           </CardHeader>
           <CardContent className="pt-0">

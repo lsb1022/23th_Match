@@ -458,3 +458,26 @@ export async function getAttendanceStats(memberId: number) {
   
   return stats;
 }
+
+
+export async function getOverallAttendanceStats() {
+  const db = await getDb();
+  if (!db) return { present: 0, late: 0, absent: 0, total: 0 };
+
+  const result = await db.select({
+    status: attendances.status,
+    count: sql<number>`count(*)`.as('count')
+  })
+    .from(attendances)
+    .groupBy(attendances.status);
+
+  const stats = { present: 0, late: 0, absent: 0, total: 0 };
+  result.forEach(row => {
+    if (row.status === 'present') stats.present = Number(row.count);
+    else if (row.status === 'late') stats.late = Number(row.count);
+    else if (row.status === 'absent') stats.absent = Number(row.count);
+  });
+  stats.total = stats.present + stats.late + stats.absent;
+
+  return stats;
+}

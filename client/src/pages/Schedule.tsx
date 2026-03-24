@@ -20,12 +20,7 @@ export default function Schedule() {
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 glass border-b border-border/50">
         <div className="container flex items-center h-14">
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={() => navigate('/')}
-            className="mr-2"
-          >
+          <Button variant="ghost" size="icon" onClick={() => navigate('/')} className="mr-2">
             <ArrowLeft className="w-5 h-5" />
           </Button>
           <h1 className="font-semibold">주간 스케줄</h1>
@@ -75,7 +70,8 @@ export default function Schedule() {
                   <CardContent>
                     <div className="space-y-2">
                       {day.slots.map((slot) => {
-                        const isMySchedule = slot.memberId === member?.id;
+                        const slotMembers = slot.members ?? (slot.member ? [slot.member] : []);
+                        const isMySchedule = slotMembers.some((assigned: any) => assigned?.id === member?.id);
 
                         return (
                           <div
@@ -88,15 +84,23 @@ export default function Schedule() {
                               <Clock className="w-4 h-4 text-muted-foreground" />
                               <span className="text-sm font-medium">{slot.label}</span>
                             </div>
-                            <div className="flex items-center gap-2">
-                              {slot.member ? (
-                                <>
-                                  <User className="w-4 h-4 text-muted-foreground" />
-                                  <span className={`text-sm ${isMySchedule ? 'font-semibold text-primary' : 'text-foreground'}`}>
-                                    {slot.member.name}
-                                    {isMySchedule && ' (나)'}
-                                  </span>
-                                </>
+                            <div className="flex items-center gap-2 flex-wrap justify-end">
+                              {slotMembers.length > 0 ? (
+                                slotMembers.map((assigned: any) => {
+                                  const isMe = assigned?.id === member?.id;
+                                  return (
+                                    <span
+                                      key={assigned.id}
+                                      className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs sm:text-sm ${
+                                        isMe ? 'bg-primary/10 text-primary font-semibold' : 'bg-muted text-foreground'
+                                      }`}
+                                    >
+                                      <User className="w-3 h-3" />
+                                      {assigned.name}
+                                      {isMe && ' (나)'}
+                                    </span>
+                                  );
+                                })
                               ) : (
                                 <span className="text-sm text-muted-foreground">미배정</span>
                               )}
@@ -108,13 +112,6 @@ export default function Schedule() {
                   </CardContent>
                 </Card>
               ))}
-            </div>
-
-            <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <div className="w-3 h-3 rounded-full bg-primary/30" />
-                <span>내 스케줄</span>
-              </div>
             </div>
           </>
         )}

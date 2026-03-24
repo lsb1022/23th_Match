@@ -272,22 +272,6 @@ async function getEffectiveSchedulesForDate(date: string) {
     .filter(request => request.status === 'approved');
 
   const effectiveSchedules = [...baseSchedules];
-  const upsertSlot = (timeSlot: number, memberId: number) => {
-    const existing = effectiveSchedules.find(s => s.timeSlot === timeSlot);
-    if (existing) {
-      existing.memberId = memberId;
-      return;
-    }
-    effectiveSchedules.push({
-      id: -1 * (effectiveSchedules.length + 1),
-      memberId,
-      dayOfWeek: new Date(`${date}T00:00:00Z`).getUTCDay(),
-      timeSlot,
-      isActive: true,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    });
-  };
 
   for (const request of approvedRequests) {
     const originalDate = request.originalDate instanceof Date ? request.originalDate.toISOString().split('T')[0] : String(request.originalDate);
@@ -295,22 +279,49 @@ async function getEffectiveSchedulesForDate(date: string) {
 
     if (request.requestType === 'substitute') {
       if (request.targetId && originalDate === date) {
-        upsertSlot(request.originalTimeSlot, request.targetId);
+        removeMemberFromSlot(effectiveSchedules, request.originalTimeSlot, request.requesterId);
+        addMemberToSlot(date, effectiveSchedules, request.originalTimeSlot, request.targetId);
       }
       continue;
     }
 
     if (request.requestType === 'swap' && request.targetId && swapDate && request.swapTimeSlot) {
       if (originalDate === date) {
-        upsertSlot(request.originalTimeSlot, request.targetId);
+        removeMemberFromSlot(effectiveSchedules, request.originalTimeSlot, request.requesterId);
+        addMemberToSlot(date, effectiveSchedules, request.originalTimeSlot, request.targetId);
       }
       if (swapDate === date) {
-        upsertSlot(request.swapTimeSlot, request.requesterId);
+        removeMemberFromSlot(effectiveSchedules, request.swapTimeSlot, request.targetId);
+        addMemberToSlot(date, effectiveSchedules, request.swapTimeSlot, request.requesterId);
       }
     }
   }
 
-  return effectiveSchedules.sort((a, b) => a.timeSlot - b.timeSlot);
+  return effectiveSchedules.sort((a, b) => a.timeSlot - b.timeSlot || a.memberId - b.memberId);
+}
+
+
+function removeMemberFromSlot(schedules: Array<any>, timeSlot: number, memberId: number) {
+  const idx = schedules.findIndex((item) => item.timeSlot === timeSlot && item.memberId === memberId);
+  if (idx >= 0) schedules.splice(idx, 1);
+}
+
+function addMemberToSlot(date: string, schedules: Array<any>, timeSlot: number, memberId: number) {
+  const exists = schedules.some((item) => item.timeSlot === timeSlot && item.memberId === memberId);
+  if (exists) return;
+  schedules.push({
+    id: -1 * (schedules.length + 1),
+    memberId,
+    dayOfWeek: new Date(`${date}T00:00:00Z`).getUTCDay(),
+    timeSlot,
+    isActive: true,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+}
+
+function getSlotSchedules(schedules: Array<any>, timeSlot: number) {
+  return schedules.filter((item) => item.timeSlot === timeSlot);
 }
 
 function hashPassword(password: string): string {
@@ -552,9 +563,9 @@ export const appRouter = router({
         }
 
         const todaySchedules = await getEffectiveSchedulesForDate(today);
-        const currentSchedule = todaySchedules.find(s => s.timeSlot === currentSlot);
-        
-        if (!currentSchedule || currentSchedule.memberId !== memberId) {
+        const currentSchedules = todaySchedules.filter(s => s.timeSlot === currentSlot);
+
+        if (!currentSchedules.some(schedule => schedule.memberId === memberId)) {
           throw new TRPCError({ code: 'FORBIDDEN', message: '이 시간대의 담당자가 아닙니다. 담당자만 출석체크가 가능합니다.' });
         }
         
@@ -629,12 +640,17 @@ export const appRouter = router({
 
         // 각 시간대별 담당자 정보 추가
         const timeSlotsWithAssignee = TIME_SLOTS.map(slot => {
-          const schedule = todaySchedules.find(s => s.timeSlot === slot.slot);
-          const assignee = schedule ? members.find(m => m.id === schedule.memberId) : null;
+          const slotSchedules = todaySchedules.filter(s => s.timeSlot === slot.slot);
+          const assignees = slotSchedules
+            .map(schedule => members.find(m => m.id === schedule.memberId))
+            .filter(Boolean)
+            .map((member: any) => ({ id: member.id, name: member.name }));
           return {
             ...slot,
-            assigneeId: schedule?.memberId || null,
-            assigneeName: assignee?.name || null,
+            assigneeIds: slotSchedules.map(schedule => schedule.memberId),
+            assigneeId: slotSchedules[0]?.memberId || null,
+            assigneeName: assignees.length > 0 ? assignees.map((assignee: any) => assignee.name).join(', ') : null,
+            assignees,
           };
         });
 
@@ -646,6 +662,7 @@ export const appRouter = router({
           timeSlots: timeSlotsWithAssignee,
           myAttendances,
           isWeekend: dayOfWeek === 0 || dayOfWeek === 6,
+          currentAssigneeIds: timeSlotsWithAssignee.find(s => s.slot === currentSlot)?.assigneeIds || [],
           currentAssigneeId: timeSlotsWithAssignee.find(s => s.slot === currentSlot)?.assigneeId || null,
           currentTime: now.toISOString(),
           currentTimeLabel: getKSTDateTimeLabel(now),
@@ -689,13 +706,16 @@ export const appRouter = router({
         weekDates.map(async ({ dayOfWeek, dayName, date }) => {
           const schedules = await getEffectiveSchedulesForDate(date);
           const slots = TIME_SLOTS.map((slot) => {
-            const schedule = schedules.find((s) => s.timeSlot === slot.slot) ?? null;
-            const member = schedule ? members.find((m) => m.id === schedule.memberId) ?? null : null;
+            const slotSchedules = schedules.filter((s) => s.timeSlot === slot.slot);
+            const assignedMembers = slotSchedules
+              .map((schedule) => members.find((m) => m.id === schedule.memberId) ?? null)
+              .filter(Boolean);
             return {
               slot: slot.slot,
               label: slot.label,
-              memberId: schedule?.memberId ?? null,
-              member,
+              memberId: slotSchedules[0]?.memberId ?? null,
+              member: assignedMembers[0] ?? null,
+              members: assignedMembers,
             };
           });
 
@@ -734,6 +754,17 @@ export const appRouter = router({
         timeSlot: z.number().min(1).max(4),
       }))
       .mutation(async ({ input }) => {
+        const existingSchedules = await db.getSchedulesByDay(input.dayOfWeek);
+        const sameSlotSchedules = existingSchedules.filter((schedule) => schedule.timeSlot === input.timeSlot);
+
+        if (sameSlotSchedules.some((schedule) => schedule.memberId === input.memberId)) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '이미 해당 시간대에 배정된 지킴이입니다.' });
+        }
+
+        if (sameSlotSchedules.length >= 2) {
+          throw new TRPCError({ code: 'BAD_REQUEST', message: '한 시간대에는 최대 2명까지만 배정할 수 있습니다.' });
+        }
+
         await db.createSchedule(input);
         return { success: true };
       }),
@@ -768,6 +799,20 @@ export const appRouter = router({
         })),
       }))
       .mutation(async ({ input }) => {
+        const groupedBySlot = new Map<string, number[]>();
+        for (const assignment of input.assignments) {
+          const key = `${assignment.dayOfWeek}-${assignment.timeSlot}`;
+          const list = groupedBySlot.get(key) ?? [];
+          if (list.includes(assignment.memberId)) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: '같은 시간대에 동일한 지킴이를 중복 배정할 수 없습니다.' });
+          }
+          list.push(assignment.memberId);
+          if (list.length > 2) {
+            throw new TRPCError({ code: 'BAD_REQUEST', message: '한 시간대에는 최대 2명까지만 배정할 수 있습니다.' });
+          }
+          groupedBySlot.set(key, list);
+        }
+
         const daysToDelete = Array.from(new Set(input.assignments.map(a => a.dayOfWeek)));
         for (const day of daysToDelete) {
           const existingSchedules = await db.getSchedulesByDay(day);
@@ -805,17 +850,32 @@ export const appRouter = router({
           for (const { date, dayOfWeek, dayName } of weekDates) {
             const schedules = await getEffectiveSchedulesForDate(date);
             for (const slot of TIME_SLOTS) {
-              const schedule = schedules.find((item) => item.timeSlot === slot.slot) ?? null;
-              const assignedMember = schedule ? members.find((member) => member.id === schedule.memberId) ?? null : null;
-              entries.push({
-                date,
-                dayOfWeek,
-                dayName,
-                timeSlot: slot.slot,
-                label: formatScheduleOptionLabel(date, dayName, slot.label, assignedMember?.name ?? null),
-                memberId: assignedMember?.id ?? null,
-                memberName: assignedMember?.name ?? null,
-              });
+              const slotSchedules = schedules.filter((item) => item.timeSlot === slot.slot);
+              if (slotSchedules.length === 0) {
+                entries.push({
+                  date,
+                  dayOfWeek,
+                  dayName,
+                  timeSlot: slot.slot,
+                  label: formatScheduleOptionLabel(date, dayName, slot.label, null),
+                  memberId: null,
+                  memberName: null,
+                });
+                continue;
+              }
+
+              for (const schedule of slotSchedules) {
+                const assignedMember = members.find((member) => member.id === schedule.memberId) ?? null;
+                entries.push({
+                  date,
+                  dayOfWeek,
+                  dayName,
+                  timeSlot: slot.slot,
+                  label: formatScheduleOptionLabel(date, dayName, slot.label, assignedMember?.name ?? null),
+                  memberId: assignedMember?.id ?? null,
+                  memberName: assignedMember?.name ?? null,
+                });
+              }
             }
           }
         }
@@ -839,6 +899,7 @@ export const appRouter = router({
         if (value.requestType === 'swap') {
           if (!value.swapDate) ctx.addIssue({ code: 'custom', path: ['swapDate'], message: '교대할 날짜를 선택해주세요.' });
           if (!value.swapTimeSlot) ctx.addIssue({ code: 'custom', path: ['swapTimeSlot'], message: '교대할 시간대를 선택해주세요.' });
+          if (!value.targetId) ctx.addIssue({ code: 'custom', path: ['targetId'], message: '교대할 상대를 선택해주세요.' });
         }
         if (value.requestType === 'substitute' && !value.targetId) {
           ctx.addIssue({ code: 'custom', path: ['targetId'], message: '대타자를 선택해주세요.' });
@@ -918,16 +979,16 @@ export const appRouter = router({
           }
 
           const effectiveSchedules = await getEffectiveSchedulesForDate(swapDate);
-          const targetSchedule = effectiveSchedules.find(schedule => schedule.timeSlot === request.swapTimeSlot);
+          const targetSchedule = effectiveSchedules.find(
+            schedule => schedule.timeSlot === request.swapTimeSlot && schedule.memberId === request.targetId
+          );
           if (!targetSchedule) {
-            throw new TRPCError({ code: 'BAD_REQUEST', message: '교대할 일정에 배정된 담당자가 없습니다.' });
+            throw new TRPCError({ code: 'BAD_REQUEST', message: '선택한 교대 상대가 해당 시간대에 배정되어 있지 않습니다.' });
           }
 
           if (targetSchedule.memberId === request.requesterId) {
             throw new TRPCError({ code: 'BAD_REQUEST', message: '본인의 일정끼리는 교대할 수 없습니다.' });
           }
-
-          updateData.targetId = targetSchedule.memberId;
         } else if (!request.targetId) {
           throw new TRPCError({ code: 'BAD_REQUEST', message: '대타자가 지정되지 않았습니다.' });
         }
@@ -1255,16 +1316,27 @@ export const appRouter = router({
       const presentToday = todayAttendances.filter(a => a.status === 'present').length;
       const lateToday = todayAttendances.filter(a => a.status === 'late').length;
       const absentToday = todayAttendances.filter(a => a.status === 'absent').length;
+      const overallStats = await db.getOverallAttendanceStats();
+      const presentRate = overallStats.total > 0 ? Math.round((overallStats.present / overallStats.total) * 100) : 0;
+      const lateRate = overallStats.total > 0 ? Math.round((overallStats.late / overallStats.total) * 100) : 0;
+      const absentRate = overallStats.total > 0 ? Math.round((overallStats.absent / overallStats.total) * 100) : 0;
 
       return {
         totalMembers: members.length,
         activeMembers,
         pendingSwapRequests: pendingSwaps.length,
+        currentDateLabel: now.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long', timeZone: 'Asia/Seoul' }),
         todayStats: {
           present: presentToday,
           late: lateToday,
           absent: absentToday,
           total: todayAttendances.length,
+        },
+        attendanceStats: {
+          ...overallStats,
+          presentRate,
+          lateRate,
+          absentRate,
         },
       };
     }),

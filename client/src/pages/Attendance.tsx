@@ -78,6 +78,8 @@ export default function Attendance() {
   const currentSlotInfo = todayStatus?.timeSlots?.find(
     (slot) => slot.slot === todayStatus.currentSlot
   );
+  const currentAssignees = currentSlotInfo?.assignees ?? [];
+  const isCurrentAssignee = currentAssignees.some((assignee: any) => assignee.id === member?.id);
 
   const isAlreadyCheckedIn = todayStatus?.myAttendances?.some(
     (a) => a.timeSlot === todayStatus.currentSlot && a.status !== 'absent'
@@ -133,7 +135,17 @@ export default function Attendance() {
                           <div className="text-xs text-muted-foreground mb-1">현재 기준 시간</div>
                           <div className="text-sm font-medium mb-2">{todayStatus?.currentTimeLabel || formatKSTDateTime(todayStatus?.currentTime)}</div>
                           <div className="text-xs text-muted-foreground mb-1">담당자</div>
-                          <div className="text-sm font-semibold text-foreground">{currentSlotInfo.assigneeName || '담당자 없음'}</div>
+                          {currentAssignees.length > 0 ? (
+                            <div className="flex flex-wrap gap-1.5">
+                              {currentAssignees.map((assignee: any) => (
+                                <span key={assignee.id} className="rounded-full bg-muted px-2.5 py-1 text-xs font-medium text-foreground">
+                                  {assignee.name}
+                                </span>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-sm font-semibold text-foreground">담당자 없음</div>
+                          )}
                         </div>
                         <div className="space-y-2 mt-3">
                           <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
@@ -153,7 +165,7 @@ export default function Attendance() {
                             {getStatusIcon(todayStatus?.myAttendances?.find((a) => a.timeSlot === todayStatus.currentSlot)?.status || 'present')}
                             <span className="font-medium">{getStatusText(todayStatus?.myAttendances?.find((a) => a.timeSlot === todayStatus.currentSlot)?.status || 'present', todayStatus?.myAttendances?.find((a) => a.timeSlot === todayStatus.currentSlot)?.lateMinutes)}</span>
                           </div>
-                        ) : currentSlotInfo.assigneeId === member?.id ? (
+                        ) : isCurrentAssignee ? (
                           <Button
                             onClick={handleCheckIn}
                             disabled={checkInMutation.isPending || !qrCode.trim() || pinCode.trim().length !== 4}

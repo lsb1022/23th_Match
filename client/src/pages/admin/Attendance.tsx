@@ -92,6 +92,22 @@ export default function AdminAttendance() {
     return members?.find(m => m.id === memberId)?.name || '알 수 없음';
   };
 
+  const overallStats = {
+    present: allAttendances?.filter((att) => att.status === 'present').length ?? 0,
+    late: allAttendances?.filter((att) => att.status === 'late').length ?? 0,
+    absent: allAttendances?.filter((att) => att.status === 'absent').length ?? 0,
+  };
+  const overallTotal = overallStats.present + overallStats.late + overallStats.absent;
+
+  const memberStats = members?.map((member) => {
+    const memberAttendances = allAttendances?.filter((attendance) => attendance.memberId === member.id) ?? [];
+    const present = memberAttendances.filter((attendance) => attendance.status === 'present').length;
+    const late = memberAttendances.filter((attendance) => attendance.status === 'late').length;
+    const absent = memberAttendances.filter((attendance) => attendance.status === 'absent').length;
+    const total = present + late + absent;
+    return { memberId: member.id, name: member.name, present, late, absent, total, rate: total > 0 ? Math.round((present / total) * 100) : 0 };
+  }).sort((a, b) => b.rate - a.rate || b.total - a.total) ?? [];
+
   // Group attendances by date for recent history
   const groupedAttendances = allAttendances?.reduce((acc, att) => {
     const dateStr = String(att.date).split('T')[0];
@@ -147,6 +163,38 @@ export default function AdminAttendance() {
               onChange={(e) => setSelectedDate(e.target.value)}
               className="w-full"
             />
+          </CardContent>
+        </Card>
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Card className="elegant-card"><CardContent className="p-4"><div className="text-xs text-muted-foreground">누적 정시</div><div className="text-2xl font-bold text-emerald-600">{overallStats.present}</div></CardContent></Card>
+          <Card className="elegant-card"><CardContent className="p-4"><div className="text-xs text-muted-foreground">누적 지각</div><div className="text-2xl font-bold text-amber-600">{overallStats.late}</div></CardContent></Card>
+          <Card className="elegant-card"><CardContent className="p-4"><div className="text-xs text-muted-foreground">누적 결석</div><div className="text-2xl font-bold text-red-500">{overallStats.absent}</div></CardContent></Card>
+          <Card className="elegant-card"><CardContent className="p-4"><div className="text-xs text-muted-foreground">누적 출석률</div><div className="text-2xl font-bold">{overallTotal > 0 ? Math.round((overallStats.present / overallTotal) * 100) : 0}%</div></CardContent></Card>
+        </div>
+
+        <Card className="elegant-card">
+          <CardHeader className="pb-3"><CardTitle className="text-lg">회원별 출석 통계</CardTitle></CardHeader>
+          <CardContent>
+            {memberStats.length === 0 ? (
+              <p className="text-sm text-muted-foreground">회원 통계가 없습니다.</p>
+            ) : (
+              <div className="space-y-2">
+                {memberStats.map((stat) => (
+                  <div key={stat.memberId} className="rounded-lg border border-border p-3">
+                    <div className="flex items-center justify-between gap-3 mb-2">
+                      <div className="font-medium text-sm">{stat.name}</div>
+                      <div className="text-sm font-semibold">{stat.rate}%</div>
+                    </div>
+                    <div className="grid grid-cols-3 gap-2 text-center text-xs">
+                      <div className="rounded bg-emerald-500/10 px-2 py-2"><div className="font-bold text-emerald-600">{stat.present}</div><div className="text-muted-foreground">정시</div></div>
+                      <div className="rounded bg-amber-500/10 px-2 py-2"><div className="font-bold text-amber-600">{stat.late}</div><div className="text-muted-foreground">지각</div></div>
+                      <div className="rounded bg-red-500/10 px-2 py-2"><div className="font-bold text-red-500">{stat.absent}</div><div className="text-muted-foreground">결석</div></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 

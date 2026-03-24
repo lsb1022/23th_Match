@@ -85,7 +85,7 @@ export default function Swap() {
       originalDate,
       originalTimeSlot: parseInt(originalTimeSlot),
       requestType,
-      targetId: requestType === 'substitute' ? parseInt(targetId) : undefined,
+      targetId: targetId ? parseInt(targetId) : undefined,
       swapDate: requestType === 'swap' ? swapDate : undefined,
       swapTimeSlot: requestType === 'swap' ? parseInt(swapTimeSlot) : undefined,
       reason: reason || undefined,
@@ -149,6 +149,8 @@ export default function Swap() {
     if (!originalScheduleKey) return option.memberId !== member?.id;
     return `${option.date}|${option.timeSlot}` !== originalScheduleKey && option.memberId !== member?.id;
   });
+
+  const swapTargetOptions = availableSwapSchedules.filter((option) => `${option.date}|${option.timeSlot}` === swapScheduleKey);
 
   return (
     <div className="min-h-screen bg-background">
@@ -269,17 +271,35 @@ export default function Swap() {
                         <Label className="text-sm font-medium">교대할 일정</Label>
                         <p className="text-xs text-muted-foreground">이번주와 다음주 실제 배정표 안에서만 선택할 수 있어요.</p>
                       </div>
-                      <Select value={swapScheduleKey} onValueChange={setSwapScheduleKey}>
+                      <Select value={swapScheduleKey} onValueChange={(value) => { setSwapScheduleKey(value); setTargetId(''); }}>
                         <SelectTrigger className="h-10">
                           <SelectValue placeholder="교대할 일정 선택" />
                         </SelectTrigger>
                         <SelectContent>
-                          {availableSwapSchedules.length > 0 ? availableSwapSchedules.map((option) => (
-                            <SelectItem key={`${option.date}-${option.timeSlot}-${option.memberId}`} value={`${option.date}|${option.timeSlot}`}>
-                              {option.label}
+                          {Array.from(new Map(availableSwapSchedules.map((option) => [`${option.date}|${option.timeSlot}`, option])).values()).length > 0 ? Array.from(new Map(availableSwapSchedules.map((option) => [`${option.date}|${option.timeSlot}`, option])).values()).map((option) => (
+                            <SelectItem key={`${option.date}-${option.timeSlot}`} value={`${option.date}|${option.timeSlot}`}>
+                              {option.date} · {option.dayName}요일 · {timeSlotLabels[option.timeSlot]}
                             </SelectItem>
                           )) : (
                             <SelectItem value="no-swap" disabled>선택 가능한 교대 일정이 없습니다</SelectItem>
+                          )}
+                        </SelectContent>
+                      </Select>
+                      <div className="space-y-1">
+                        <Label className="text-sm font-medium">교대 상대</Label>
+                        <p className="text-xs text-muted-foreground">한 시간대에 두 명이 배정된 경우 누구와 교대할지 선택하세요.</p>
+                      </div>
+                      <Select value={targetId} onValueChange={setTargetId}>
+                        <SelectTrigger className="h-10">
+                          <SelectValue placeholder="교대 상대 선택" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {swapTargetOptions.length > 0 ? swapTargetOptions.map((option) => (
+                            <SelectItem key={`${option.date}-${option.timeSlot}-${option.memberId}`} value={String(option.memberId)}>
+                              {option.memberName}
+                            </SelectItem>
+                          )) : (
+                            <SelectItem value="no-target" disabled>먼저 교대할 일정을 선택해주세요</SelectItem>
                           )}
                         </SelectContent>
                       </Select>
