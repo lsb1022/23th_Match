@@ -306,8 +306,11 @@ async function getEffectiveSchedulesForDate(date: string) {
 function removeMemberFromSlot(schedules: Array<any>, timeSlot: number, memberId: number) {
   const numericTimeSlot = Number(timeSlot);
   const numericMemberId = Number(memberId);
-  const idx = schedules.findIndex((item) => Number(item.timeSlot) === numericTimeSlot && Number(item.memberId) === numericMemberId);
-  if (idx >= 0) schedules.splice(idx, 1);
+  for (let i = schedules.length - 1; i >= 0; i -= 1) {
+    if (Number(schedules[i].timeSlot) === numericTimeSlot && Number(schedules[i].memberId) === numericMemberId) {
+      schedules.splice(i, 1);
+    }
+  }
 }
 
 function addMemberToSlot(date: string, schedules: Array<any>, timeSlot: number, memberId: number) {
