@@ -21,6 +21,8 @@ export default function AdminSchedules() {
   const [bulkAssignments, setBulkAssignments] = useState<Record<number, Record<number, string[]>>>(
     Object.fromEntries([1, 2, 3, 4, 5].map((day) => [day, {}]))
   );
+  const [bulkPickerValues, setBulkPickerValues] = useState<Record<string, string>>({});
+  const [bulkPickerOpen, setBulkPickerOpen] = useState<Record<string, boolean>>({});
 
   const { data: schedules, refetch } = trpc.schedule.list.useQuery(undefined, {
     enabled: isAuthenticated && user?.role === 'admin',
@@ -57,6 +59,8 @@ export default function AdminSchedules() {
       refetch();
       setIsBulkOpen(false);
       setBulkAssignments(Object.fromEntries([1, 2, 3, 4, 5].map((day) => [day, {}])));
+      setBulkPickerValues({});
+      setBulkPickerOpen({});
     },
     onError: (error: any) => toast.error(error.message),
   });
@@ -104,6 +108,39 @@ export default function AdminSchedules() {
     createMutation.mutate({ memberId: parseInt(selectedMember), dayOfWeek: parseInt(selectedDay), timeSlot: parseInt(selectedSlot) });
   };
 
+  const handleBulkOpenChange = (key: string, currentCount: number, open: boolean) => {
+    if (open && currentCount >= 2) {
+      toast.error('학지는 2명까지 배정할 수 있습니다.');
+      setBulkPickerOpen((prev) => ({ ...prev, [key]: false }));
+      return;
+    }
+    setBulkPickerOpen((prev) => ({ ...prev, [key]: open }));
+  };
+
+  const handleBulkSelect = (day: number, slot: number, value: string) => {
+    const key = `${day}-${slot}`;
+    const prevList = bulkAssignments[day]?.[slot] ?? [];
+
+    if (prevList.includes(value)) {
+      toast.error('이미 선택된 지킴이입니다.');
+      setBulkPickerValues((prev) => ({ ...prev, [key]: '' }));
+      return;
+    }
+
+    if (prevList.length >= 2) {
+      toast.error('학지는 2명까지 배정할 수 있습니다.');
+      setBulkPickerValues((prev) => ({ ...prev, [key]: '' }));
+      return;
+    }
+
+    setBulkAssignments((prev) => ({
+      ...prev,
+      [day]: { ...prev[day], [slot]: [...prevList, value] },
+    }));
+    setBulkPickerValues((prev) => ({ ...prev, [key]: '' }));
+    setBulkPickerOpen((prev) => ({ ...prev, [key]: false }));
+  };
+
   return (
     <div className="min-h-screen bg-background">
       <header className="sticky top-0 z-50 glass border-b border-border/50">
@@ -124,28 +161,51 @@ export default function AdminSchedules() {
                       <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                         {timeSlots.map((slot) => {
                           const currentValues = bulkAssignments[day]?.[slot.slot] ?? [];
+                          const selectKey = `${day}-${slot.slot}`;
+                          const remainingMembers = activeMembers.filter((member) => !currentValues.includes(String(member.id)));
                           return (
                             <div key={slot.slot} className="space-y-2 rounded-lg border border-border p-3">
-                              <Label className="text-xs text-muted-foreground">{slot.label}</Label>
-                              <Select onValueChange={(value) => {
-                                setBulkAssignments((prev) => {
-                                  const prevList = prev[day]?.[slot.slot] ?? [];
-                                  if (prevList.includes(value) || prevList.length >= 2) return prev;
-                                  return { ...prev, [day]: { ...prev[day], [slot.slot]: [...prevList, value] } };
-                                });
-                              }}>
-                                <SelectTrigger className="h-9"><SelectValue placeholder="지킴이 추가" /></SelectTrigger>
+                              <div className="flex items-center justify-between gap-2">
+                                <Label className="text-xs text-muted-foreground">{slot.label}</Label>
+                                <span className="text-[11px] text-muted-foreground">{currentValues.length}/2명</span>
+                              </div>
+                              <Select
+                                value={bulkPickerValues[selectKey] ?? ''}
+                                open={bulkPickerOpen[selectKey] ?? false}
+                                onOpenChange={(open) => handleBulkOpenChange(selectKey, currentValues.length, open)}
+                                onValueChange={(value) => handleBulkSelect(day, slot.slot, value)}
+                              >
+                                <SelectTrigger className="h-9">
+                                  <SelectValue placeholder={currentValues.length >= 2 ? '학지는 2명까지' : '지킴이 추가'} />
+                                </SelectTrigger>
                                 <SelectContent>
-                                  {activeMembers.filter((member) => !currentValues.includes(String(member.id))).map((member) => (
+                                  {remainingMembers.length > 0 ? remainingMembers.map((member) => (
                                     <SelectItem key={member.id} value={member.id.toString()}>{member.name}</SelectItem>
-                                  ))}
+                                  )) : (
+                                    <SelectItem value="no-members" disabled>추가 가능한 지킴이가 없습니다</SelectItem>
+                                  )}
                                 </SelectContent>
                               </Select>
                               <div className="flex flex-wrap gap-1.5">
                                 {currentValues.length > 0 ? currentValues.map((value) => {
                                   const assigned = activeMembers.find((member) => String(member.id) === value);
                                   return (
-                                    <button type="button" key={value} onClick={() => setBulkAssignments((prev) => ({ ...prev, [day]: { ...prev[day], [slot.slot]: (prev[day]?.[slot.slot] ?? []).filter((id) => id !== value) } }))} className="rounded-full bg-muted px-2.5 py-1 text-xs hover:bg-muted/70">
+                                    <button
+                                      type="button"
+                                      key={value}
+                                      onClick={() => {
+                                        setBulkAssignments((prev) => ({
+                                          ...prev,
+                                          [day]: {
+                                            ...prev[day],
+                                            [slot.slot]: (prev[day]?.[slot.slot] ?? []).filter((id) => id !== value),
+                                          },
+                                        }));
+                                        setBulkPickerValues((prev) => ({ ...prev, [selectKey]: '' }));
+                                        setBulkPickerOpen((prev) => ({ ...prev, [selectKey]: false }));
+                                      }}
+                                      className="rounded-full bg-muted px-2.5 py-1 text-xs hover:bg-muted/70"
+                                    >
                                       {assigned?.name ?? value} ×
                                     </button>
                                   );
