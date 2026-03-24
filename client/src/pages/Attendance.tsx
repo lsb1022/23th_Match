@@ -48,9 +48,16 @@ export default function Attendance() {
   });
 
   const handleCheckIn = () => {
-    if (member?.id && todayStatus?.currentSlot) {
-      checkInMutation.mutate({ qrCode: qrCode.trim(), pinCode: pinCode.trim() });
+    if (!todayStatus?.currentSlot) return;
+    if (pinCode.trim().length !== 4) {
+      toast.error('4자리 인증 코드를 입력해주세요.');
+      return;
     }
+    if (!qrCode.trim()) {
+      toast.error('먼저 학생회실 QR을 스캔해주세요. 보안을 위해 QR 확인 후에만 출석할 수 있습니다.');
+      return;
+    }
+    checkInMutation.mutate({ qrCode: qrCode.trim(), pinCode: pinCode.trim() });
   };
 
   if (!isAuthenticated) {
@@ -84,6 +91,7 @@ export default function Attendance() {
   const isAlreadyCheckedIn = todayStatus?.myAttendances?.some(
     (a) => a.timeSlot === todayStatus.currentSlot && a.status !== 'absent'
   );
+  const currentSlotAttendances = todayStatus?.currentSlotAttendances ?? [];
 
   return (
     <div className="min-h-screen bg-background">
@@ -147,6 +155,21 @@ export default function Attendance() {
                             <div className="text-sm font-semibold text-foreground">담당자 없음</div>
                           )}
                         </div>
+                        {currentSlotAttendances.length > 0 && (
+                          <div className="mb-3 rounded-lg border border-border/60 bg-background/70 p-2.5">
+                            <div className="mb-2 text-xs text-muted-foreground">현재 시간대 출석 현황</div>
+                            <div className="space-y-1.5">
+                              {currentSlotAttendances.map((entry: any) => (
+                                <div key={entry.memberId} className="flex items-center justify-between gap-3 rounded-md bg-muted/40 px-2.5 py-2 text-sm">
+                                  <span className="font-medium text-foreground">{entry.memberName}</span>
+                                  <span className={`${entry.status === 'present' ? 'text-emerald-600' : entry.status === 'late' ? 'text-amber-600' : entry.status === 'absent' ? 'text-red-500' : 'text-muted-foreground'} font-medium`}>
+                                    {getStatusText(entry.status, entry.lateMinutes)}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
                         <div className="space-y-2 mt-3">
                           <label className="text-xs font-medium text-muted-foreground flex items-center gap-1">
                             <KeyRound className="w-3.5 h-3.5" />
@@ -168,7 +191,7 @@ export default function Attendance() {
                         ) : isCurrentAssignee ? (
                           <Button
                             onClick={handleCheckIn}
-                            disabled={checkInMutation.isPending || !qrCode.trim() || pinCode.trim().length !== 4}
+                            disabled={checkInMutation.isPending || pinCode.trim().length !== 4}
                             className="w-full h-10 mt-2"
                           >
                             {checkInMutation.isPending ? '처리 중...' : 'QR로 출석하기'}
