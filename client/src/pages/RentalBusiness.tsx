@@ -124,7 +124,7 @@ export default function RentalBusiness() {
               <div className="space-y-2">
                 <Label>대여 대상자 *</Label>
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-[35%] w-4 h-4 text-muted-foreground" />
+                  <Search className="pointer-events-none absolute left-3 top-[25%] w-4 h-4 text-muted-foreground" />
                   <Input
                     value={payerSearch}
                     onFocus={() => setIsPayerDropdownOpen(true)}
