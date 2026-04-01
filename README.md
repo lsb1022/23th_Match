@@ -196,18 +196,6 @@ pnpm db:push
 pnpm dev
 ```
 
-### 🧠 Design Philosophy
-- 사용자 입력 기반 판정 최소화
-- 서버 기준 자동 판정
-- 상태 기반 시스템 설계
-- 운영 효율 최적화
-
-### 🔥 Core Differentiation
-- QR + 시간 기반 이중 인증 출석 시스템
-- 교대/대타 → 실제 스케줄 자동 반영
-- 대여 관리 → 상태 기반 자동 처리
-- 운영 데이터 → 통계화 가능 구조
-
 ### 📝 Commit Convention
 ```
 [FEAT]     새로운 기능
@@ -221,10 +209,3 @@ pnpm dev
 [REMOVE]   삭제
 [COMMENT]  주석 수정
 ```
-
-### 📌 Future Improvements
-- 실시간 알림 시스템 (WebSocket)
-- 모바일 UX 개선
-- 권한 레벨 확장
-- 데이터 시각화 고도화
-- API Rate Limiting
