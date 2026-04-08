@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { trpc } from '@/lib/trpc';
 import { useMemberAuth } from '@/contexts/MemberAuthContext';
@@ -12,6 +12,12 @@ import { Shield, User, Lock, ArrowRight } from 'lucide-react';
 export default function Login() {
   const [, navigate] = useLocation();
   const { login, refetchMember } = useMemberAuth();
+  const redirectPath = useMemo(() => {
+    const next = new URLSearchParams(window.location.search).get('next');
+    if (!next) return '/';
+    if (!next.startsWith('/')) return '/';
+    return next;
+  }, []);
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
 
@@ -20,7 +26,7 @@ export default function Login() {
       login(data.member);
       await refetchMember();
       toast.success(`${data.member.name}님, 환영합니다!`);
-      navigate('/');
+      navigate(redirectPath);
     },
     onError: (error) => {
       toast.error(error.message);

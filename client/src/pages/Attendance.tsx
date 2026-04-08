@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useLocation } from 'wouter';
 import { trpc } from '@/lib/trpc';
 import { useMemberAuth } from '@/contexts/MemberAuthContext';
@@ -60,8 +60,13 @@ export default function Attendance() {
     checkInMutation.mutate({ qrCode: qrCode.trim(), pinCode: pinCode.trim() });
   };
 
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate(`/login?next=${encodeURIComponent(`${window.location.pathname}${window.location.search}`)}`);
+    }
+  }, [isAuthenticated, navigate]);
+
   if (!isAuthenticated) {
-    navigate('/login');
     return null;
   }
 
